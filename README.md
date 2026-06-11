@@ -2,7 +2,7 @@
 
 > 一個幫企業提升招募吸引力的 AI 系統，從被動等履歷轉為主動提升職缺競爭力。
 
-**作者：** April ｜ **版本：** v1.4.0 ｜ **開發狀態：** Phase 1 進行中（Module A、B、D 已完成）
+**作者：** April ｜ **版本：** v1.4.0 ｜ **開發狀態：** Phase 1 完成 ✅（Module A、B、D + Streamlit 前端）
 
 ---
 
@@ -51,7 +51,11 @@ portfolio/
 ├── .gitignore
 ├── requirements.txt
 ├── frontend/
-│   └── app_ui.py                   # Streamlit 前端（開發中）
+│   ├── app_ui.py                   # Streamlit 首頁
+│   └── pages/
+│       ├── 1_JD分析.py             # Module A 介面
+│       ├── 2_JD改寫.py             # Module B 介面
+│       └── 3_人才畫像.py           # Module D 介面
 └── app/
     ├── core/
     │   ├── prompts/                # Prompt templates（各模組）
@@ -107,11 +111,13 @@ uvicorn main:app --reload
 
 API 文件：http://localhost:8000/docs
 
-### 啟動前端（開發中）
+### 啟動前端
 
 ```bash
 streamlit run frontend/app_ui.py
 ```
+
+前端介面：http://localhost:8501
 
 ---
 
@@ -234,7 +240,7 @@ streamlit run frontend/app_ui.py
 ### 開發階段規劃
 
 ```
-Phase 1（當前）：Module A、B、D + Streamlit 前端
+Phase 1（✅ 完成）：Module A、B、D + Streamlit 前端
 Phase 2：Module C（薪資競爭力）、Module E（Sourcing 助手）
 Phase 3：Module F（RAG 知識庫）、Module G（AI Agent 串聯）
 ```
