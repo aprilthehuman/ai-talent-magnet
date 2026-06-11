@@ -142,12 +142,15 @@ if st.session_state.get("module_d_result"):
             st.markdown(f"- 目標候選人特質：{st.session_state.get('target_candidate_focus') or '（未填）'}")
 
     st.markdown("---")
-
+    
     col1, col2 = st.columns(2)
     with col1:
+        # 理想年資是短文字，適合用 metric 顯示
         st.metric("理想年資", persona.get("ideal_seniority", "-"))
     with col2:
-        st.metric("建議溝通語氣", persona.get("preferred_message_style", "-"))
+        # 建議溝通語氣可能是長句子，改用一般文字顯示避免截斷
+        st.markdown("**建議溝通語氣**")
+        st.markdown(persona.get("preferred_message_style", "-"))
 
     st.markdown("---")
 
