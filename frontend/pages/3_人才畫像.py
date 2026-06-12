@@ -7,6 +7,14 @@ Module D：Candidate Persona Generator
 從 session_state 帶入 Module A + B 的所有結果
 使用者不需要重複填寫任何資訊
 """
+# ── 強制流程順序：必須先完成 Module A 和 B 才能進入此頁 ────────────
+if not st.session_state.get("module_a_result"):
+    st.warning("⚠️ 請先完成「JD 分析」再繼續。")
+    st.stop()
+
+if not st.session_state.get("module_b_result"):
+    st.warning("⚠️ 請先完成「JD 改寫」並選擇一個版本再繼續。")
+    st.stop()
 
 
 st.title("👤 候選人 Persona")
@@ -34,25 +42,7 @@ else:
 if not st.session_state.get("company_profile"):
     st.warning("⚠️ 尚未填寫 Company Profile，請先完成「JD 改寫」。")
     ready = False
-else:
-    profile = st.session_state["company_profile"]
-    st.markdown(f"**公司：** {profile['company_name']}　｜　**文化：** {', '.join(profile['culture_keywords'])}")
 
-# 顯示從 Module A 帶入的資訊摘要（讓使用者確認）
-if st.session_state.get("job_title"):
-    st.markdown(f"**職稱：** {st.session_state['job_title']}")
-
-if st.session_state.get("module_a_result"):
-    module_a = st.session_state["module_a_result"]
-    details = []
-    if module_a.get("company_type"):
-        details.append(f"公司類型：{module_a['company_type']}")
-    if module_a.get("industry"):
-        details.append(f"產業：{module_a['industry']}")
-    if module_a.get("seniority_level"):
-        details.append(f"資歷：{module_a['seniority_level']}")
-    if details:
-        st.markdown("　｜　".join(details))
 
 st.markdown("---")
 
@@ -108,7 +98,6 @@ if st.session_state.get("module_d_result"):
     persona = result.get("persona", {})
 
     st.markdown("## 🎯 理想候選人 Persona")
-    st.markdown(f"**職稱：** {result.get('job_title', '-')}")
 
     # ── 本次分析使用的資料（expander 收起，需要確認時才展開）──
     with st.expander("📋 本次分析使用的資料（展開確認）"):

@@ -8,6 +8,12 @@ Module B：JD Rewrite AI
 """
 
 
+# ── 強制流程順序：必須先完成 Module A 才能進入此頁 ────────
+if not st.session_state.get("module_a_result"):
+    st.warning("⚠️ 請先完成「JD 分析」再進行改寫。")
+    st.stop()
+
+
 st.title("✍️ JD 改寫")
 st.markdown("根據你的公司文化，AI 產出三種風格的改寫版本。")
 st.markdown("---")
@@ -15,22 +21,15 @@ st.markdown("---")
 # ── 原始 JD（從 session_state 帶入，不需要重新貼）────────
 st.markdown("### 📄 原始 JD")
 
-if st.session_state["original_jd"]:
-    original_jd = st.text_area(
-        "原始 JD",
-        value=st.session_state["original_jd"],
-        height=150,
-        disabled=True,
-        label_visibility="collapsed"
-    )
-else:
-    st.info("💡 建議先完成「JD 分析」，JD 內容會自動帶入此頁")
-    original_jd = st.text_area(
-        "原始 JD",
-        placeholder="請貼上原始 JD 文字...",
-        height=150,
-        label_visibility="collapsed"
-    )
+# original_jd 一定從 Module A 帶入
+# 上方已用 st.stop() 確保 Module A 一定跑過
+original_jd = st.text_area(
+    "原始 JD",
+    value=st.session_state["original_jd"],
+    height=150,
+    disabled=True,
+    label_visibility="collapsed"
+)
 
 st.markdown("---")
 
