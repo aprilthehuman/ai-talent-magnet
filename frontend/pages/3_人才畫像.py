@@ -1,21 +1,22 @@
 import streamlit as st
 import requests
 
-
 """
 Module D：Candidate Persona Generator
 從 session_state 帶入 Module A + B 的所有結果
 使用者不需要重複填寫任何資訊
 """
+
 # ── 強制流程順序：必須先完成 Module A 和 B 才能進入此頁 ────────────
 if not st.session_state.get("module_a_result"):
     st.warning("⚠️ 請先完成「JD 分析」再繼續。")
     st.stop()
 
-if not st.session_state.get("module_b_result"):
+# 檢查 selected_jd 比 module_b_result 更精確
+# 使用者可能跑完改寫但忘記選定版本
+if not st.session_state.get("selected_jd"):
     st.warning("⚠️ 請先完成「JD 改寫」並選擇一個版本再繼續。")
     st.stop()
-
 
 st.title("👤 候選人 Persona")
 st.markdown("根據選定的 JD 版本，AI 反推理想候選人的樣貌。")
@@ -24,25 +25,21 @@ st.markdown("---")
 # ── 確認前置資料是否齊全 ──────────────────────────────────
 ready = True
 
-# 檢查 selected_jd（從 Module B 選定的版本）
-if not st.session_state.get("selected_jd"):
-    st.warning("⚠️ 尚未選擇 JD 版本，請先完成「JD 改寫」並選擇一個版本。")
-    ready = False
-else:
-    st.markdown("### 📄 已選定的 JD 版本")
-    st.text_area(
-        "selected_jd",
-        value=st.session_state["selected_jd"],
-        height=150,
-        disabled=True,
-        label_visibility="collapsed"
-    )
+# st.stop() 已確保 selected_jd 一定有值，直接顯示即可
+st.markdown("### 📄 已選定的 JD 版本")
+st.text_area(
+    "selected_jd",
+    value=st.session_state["selected_jd"],
+    height=150,
+    disabled=True,
+    label_visibility="collapsed"
+)
 
 # 檢查 company_profile（從 Module B 帶入）
 if not st.session_state.get("company_profile"):
     st.warning("⚠️ 尚未填寫 Company Profile，請先完成「JD 改寫」。")
     ready = False
-
+# else 不顯示任何內容，資料已在 expander 裡完整呈現
 
 st.markdown("---")
 
@@ -89,7 +86,6 @@ if st.button(
         except Exception as e:
             st.error(f"發生未預期的錯誤：{e}")
 
-
 # ── 結果顯示區 ────────────────────────────────────────────
 if st.session_state.get("module_d_result"):
     result = st.session_state["module_d_result"]
@@ -98,6 +94,7 @@ if st.session_state.get("module_d_result"):
     persona = result.get("persona", {})
 
     st.markdown("## 🎯 理想候選人 Persona")
+    st.markdown(f"**職稱：** {result.get('job_title', '-')}")
 
     # ── 本次分析使用的資料（expander 收起，需要確認時才展開）──
     with st.expander("📋 本次分析使用的資料（展開確認）"):
@@ -131,7 +128,7 @@ if st.session_state.get("module_d_result"):
             st.markdown(f"- 目標候選人特質：{st.session_state.get('target_candidate_focus') or '（未填）'}")
 
     st.markdown("---")
-    
+
     col1, col2 = st.columns(2)
     with col1:
         # 理想年資是短文字，適合用 metric 顯示
