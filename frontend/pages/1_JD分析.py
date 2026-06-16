@@ -153,10 +153,13 @@ if st.session_state["module_a_result"]:
     st.markdown("---")
 
     # 缺失項目
+    # missing_elements 現在是 list[MissingElement]，每個元素包含 label 和 penalty
+    # 顯示缺失項目名稱和對應的扣分，讓 HR 知道哪個問題最嚴重
     st.markdown("### 📌 缺失的重要資訊")
     if result["missing_elements"]:
         for item in result["missing_elements"]:
-            st.markdown(f"- {item}")
+            # item 是字典，用 item["label"] 取名稱，item["penalty"] 取扣分
+            st.markdown(f"- {item['label']}：扣 {item['penalty']} 分")
     else:
         st.markdown("✅ 資訊完整")
 
