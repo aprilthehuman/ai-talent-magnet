@@ -1,4 +1,5 @@
 import os
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from app.core.keyword_dicts import (
@@ -7,7 +8,7 @@ from app.core.keyword_dicts import (
     MISSING_CHECKLIST,
     MISSING_PENALTY
 )
-from app.models.analyzer_schemas import AnalyzeJDRequest, AnalyzeJDResponse
+from app.models.analyzer_schemas import AnalyzeJDRequest, AnalyzeJDResponse, MissingElement
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -16,7 +17,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 def detect_negative_keywords(text: str) -> list[str]:
     """掃描 JD 裡有沒有負面詞彙"""
     found = []
-    for keyword in NEGATIVE_KEYWORDS.keys(): 
+    for keyword in NEGATIVE_KEYWORDS:
         if keyword in text:
             found.append(keyword)
     return found
@@ -31,21 +32,22 @@ def detect_vague_phrases(text: str) -> list[str]:
     return found
 
 
-def detect_missing_elements(text: str) -> tuple[list[str], int]:
+def detect_missing_elements(text: str) -> tuple[list[MissingElement], int]:
     """
     檢查 JD 缺少哪些重要資訊
     回傳：(缺失項目清單, 總扣分)
+    缺失項目現在是 MissingElement 物件，包含 label 和 penalty
     """
     missing = []
     total_penalty = 0
 
     for category, keywords in MISSING_CHECKLIST:
-        # 只要 JD 裡有任何一個關鍵字，就算有提到這個類別
         has_category = any(kw in text for kw in keywords)
-        # if not True, then append the label and score to the missing list
         if not has_category:
-            missing.append(MISSING_PENALTY[category]["label"])
-            total_penalty += MISSING_PENALTY[category]["score"]
+            penalty = MISSING_PENALTY[category]["score"]
+            label = MISSING_PENALTY[category]["label"]
+            missing.append(MissingElement(label=label, penalty=penalty))
+            total_penalty += penalty
 
     return missing, total_penalty
 
@@ -61,7 +63,6 @@ def analyze_tone_with_ai(
     用 LLM 分析 JD 語氣
     回傳：(AI層分數, 語氣描述, 改善建議)
     """
-
     # 把選填欄位組成背景資訊，沒填的就不帶進 prompt
     context_parts = []
     if company_type:
@@ -74,24 +75,24 @@ def analyze_tone_with_ai(
     context_str = "\n".join(context_parts) if context_parts else "（未提供）"
 
     prompt = f"""
-    你是一位資深招募顧問，請從「候選人角度」分析以下職缺描述(JD)。
+你是一位資深招募顧問，請從「候選人角度」分析以下職缺描述（JD）。
 
-    職稱：{job_title}
-    {context_str}
-    JD 內容：
-    {text}
+職稱：{job_title}
+{context_str}
+JD 內容：
+{text}
 
-    請用以下 JSON 格式回答，不要加任何其他文字：
-    {{
-    "tone_score": 分數(0到40之間的整數),
-    "tone_description":"請用80到100字描述這份JD的整體語氣, 需涵蓋: 語氣風格、對候選人的吸引力程度、以及整體給人的感受",
-    "top_3_improvements": [
-    "【問題】說明具體問題在哪→【原因】為什麼這樣寫會讓候選人卻步→【建議】具體怎麼改,每條建議40到60字",
-    "【問題】說明具體問題在哪→【原因】為什麼這樣寫會讓候選人卻步→【建議】具體怎麼改,每條建議40到60字",
-    "【問題】說明具體問題在哪→【原因】為什麼這樣寫會讓候選人卻步→【建議】具體怎麼改,每條建議40到60字"
-    ]
-    }}
-    """
+請用以下 JSON 格式回答，不要加任何其他文字：
+{{
+  "tone_score": 分數（0到40之間的整數）,
+  "tone_description": "請用80到100字描述這份JD的整體語氣，需涵蓋：語氣風格、對候選人的吸引力程度、以及整體給人的感受",
+  "top_3_improvements": [
+    "【問題】說明具體問題在哪（約30字）→【原因】為什麼這樣寫會讓候選人卻步（約30字）→【建議】具體怎麼改（約50字）",
+    "【問題】說明具體問題在哪（約30字）→【原因】為什麼這樣寫會讓候選人卻步（約30字）→【建議】具體怎麼改（約50字）",
+    "【問題】說明具體問題在哪（約30字）→【原因】為什麼這樣寫會讓候選人卻步（約30字）→【建議】具體怎麼改（約50字）"
+  ]
+}}
+"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -100,7 +101,6 @@ def analyze_tone_with_ai(
         temperature=0.5
     )
 
-    import json
     result = json.loads(response.choices[0].message.content)
 
     return (
@@ -111,6 +111,7 @@ def analyze_tone_with_ai(
 
 
 def get_score_label(score: int) -> str:
+    """根據分數回傳對應的等級標籤"""
     if score >= 80:
         return "優良"
     elif score >= 60:
@@ -150,15 +151,10 @@ def analyze_jd(request: AnalyzeJDRequest) -> AnalyzeJDResponse:
 
     return AnalyzeJDResponse(
         attraction_score=final_score,
-        score_label=get_score_label(final_score), 
+        score_label=get_score_label(final_score),
         tone_analysis=tone_desc,
         negative_keywords_detected=negative_found,
         vague_phrases_detected=vague_found,
         missing_elements=missing,
         improvement_suggestions=suggestions
     )
-    
-
-
-    
-    
