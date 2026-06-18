@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import Literal
 from app.models.persona_schemas import EducationPreference
 
 
@@ -46,8 +47,16 @@ class SourcingRequest(BaseModel):
     )
 
     # HR 選填補充
-    additional_keywords: list[str] = Field(default=[], description="HR 額外補充的關鍵字")
-    exclude_keywords: list[str] = Field(default=[], description="想排除的詞彙")
+    # 改用 default_factory=list：官方推薦寫法，明確表示每個實例都有獨立的空 list
+    # 避免多個實例共享同一個 list 物件的潛在風險（Python mutable default 陷阱）
+    additional_keywords: list[str] = Field(
+        default_factory=list,
+        description="HR 額外補充的關鍵字"
+    )
+    exclude_keywords: list[str] = Field(
+        default_factory=list,
+        description="想排除的詞彙"
+    )
 
 
 # ── 輸出子結構 ────────────────────────────────────────────
@@ -60,7 +69,11 @@ class PlatformRecommendation(BaseModel):
     不需要自己解析字串。
     """
     platform: str = Field(..., description="平台名稱")
-    suitability: str = Field(..., description="適用程度：高 / 中 / 低")
+
+    # 用 Literal 限制合法值只有三個，LLM 若回傳「非常高」等非預期值會立刻報 ValidationError
+    # 讓你馬上知道 prompt 出了問題，而不是讓錯誤資料流到前端
+    suitability: Literal["高", "中", "低"] = Field(..., description="適用程度：高 / 中 / 低")
+
     reason: str = Field(..., description="推薦理由")
     search_url_hint: str | None = Field(default=None, description="搜尋入口提示")
 

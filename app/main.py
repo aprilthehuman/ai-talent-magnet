@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import analyzer, rewriter, persona
+from app.routers import analyzer, rewriter, persona, sourcing  # 加入 sourcing
 
 """
 1. 建立 API 主程式(app)
@@ -21,6 +21,9 @@ app.include_router(rewriter.router, prefix="/api/v1", tags=["Module B - JD Rewri
 
 # 模組 D：Candidate Persona Generator
 app.include_router(persona.router, prefix="/api/v1", tags=["Module D - Persona Generator"])
+
+# 模組 E：AI Sourcing Assistant
+app.include_router(sourcing.router, prefix="/api/v1", tags=["Module E - Sourcing Assistant"])
 
 
 @app.get("/")
