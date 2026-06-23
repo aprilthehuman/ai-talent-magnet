@@ -43,18 +43,19 @@ def expand_titles_with_llm(job_title: str) -> list[str]:
     直接 json.loads() 會讓整個請求崩潰。
     用 try/except 確保最差情況只是回傳原始職稱，不影響後續流程。
     """
+    
     prompt = f"""
-請列出「{job_title}」在台灣職場中常見的同義職稱，包含中文和英文。
-只回傳 JSON object，格式如下，不要加任何說明文字或 markdown 標記：
-{{"titles": ["職稱A", "職稱B", "職稱C"]}}
-最多列 6 個。
-"""
+        請列出「{job_title}」在台灣職場中常見的同義職稱，包含中文和英文。
+        只回傳 JSON object，格式如下，不要加任何說明文字或 markdown 標記：
+        {{"titles": ["職稱A", "職稱B", "職稱C"]}}
+        最多列 6 個。
+    """
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
-            response_format={"type": "json_object"},
+            response_format={"type": "json_object"}
         )
         raw = response.choices[0].message.content
         result = json.loads(raw)

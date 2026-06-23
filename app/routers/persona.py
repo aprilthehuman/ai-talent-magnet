@@ -1,17 +1,19 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from app.models.persona_schemas import GeneratePersonaRequest, GeneratePersonaResponse
 from app.services.persona_service import generate_persona
 
 
-"""
-模組 D：Candidate Persona Generator 路由
-接收請求 → 呼叫 generate_persona() → 回傳結構化 Persona
-本身不處理邏輯，只負責接收與轉發
-"""
-
 router = APIRouter()
 
-
 @router.post("/generate-persona", response_model=GeneratePersonaResponse)
-async def generate_persona_endpoint(request: GeneratePersonaRequest):
-    return generate_persona(request)
+def generate_persona_endpoint(request: GeneratePersonaRequest):
+    
+    """
+    根據選定的改寫 JD 與 Company Profile，反推理想候選人樣貌。
+    呼叫 generate_persona() 進行 LLM 推論，回傳結構化 Persona。
+    """
+    
+    try:
+        return generate_persona(request)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
