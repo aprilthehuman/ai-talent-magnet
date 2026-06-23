@@ -1,11 +1,11 @@
-import streamlit as st
-import requests   # 用來呼叫我們的 FastAPI 後端
-
-
 """
 Module A：JD Attraction Analyzer
 讓使用者輸入 JD，呼叫後端 API，顯示分析結果
 """
+
+
+import streamlit as st
+import requests   # 用來呼叫我們的 FastAPI 後端
 
 
 # ── 頁面標題 ──────────────────────────────────────────────

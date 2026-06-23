@@ -1,14 +1,22 @@
+"""
+模組 B：JD Rewrite AI — Service 層
+核心邏輯：將 Company Profile 注入 prompt，對三種風格各呼叫一次 LLM，套用 Guardrail 後回傳
+
+函式職責：
+  - build_prompt()：將 CompanyProfile 欄位與風格指令組裝成完整 prompt
+  - check_must_avoid()：Guardrail 後處理，掃描 LLM 輸出是否含有禁用詞
+  - rewrite_jd()：主函式，串聯以上兩個函式，回傳三種風格的改寫結果
+
+Guardrail 設計：
+  - must_avoid：後處理掃描，違規時在輸出文末附上警告，提示 HR 手動修改
+  - must_include：注入 prompt，由 LLM 負責自然融入改寫結果
+"""
+
+
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
 from app.models.rewriter_schemas import RewriteJDRequest, RewriteJDResponse
-
-"""
-1. 匯入必要工具(OpenAI client、環境變數、schema)
-2. build_prompt(): 將 Company Profile 變數注入 prompt 模板, 依風格產出不同改寫指令
-3. check_must_avoid(): Guardrail 後處理, 掃描 LLM 輸出是否含有禁用詞
-4. rewrite_jd(): 主函式，對三種風格各呼叫一次 OpenAI API, 套用 Guardrail 後組裝回傳結果
-"""
 
 
 load_dotenv()

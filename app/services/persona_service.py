@@ -1,3 +1,11 @@
+"""
+模組 D 核心邏輯：
+1. 組裝 prompt (注入模組 B 的 Company Profile + 選定 JD + 模組 A 的背景欄位)
+2. 呼叫 OpenAI API, 使用 response_format 強制回傳結構化 JSON (與模組 A 一致)
+3. 解析回傳的 JSON, 對應到 CandidatePersona schema
+"""
+
+
 import os
 import json
 from openai import OpenAI
@@ -7,14 +15,6 @@ from app.models.persona_schemas import (
     GeneratePersonaResponse,
     CandidatePersona
 )
-
-
-"""
-模組 D 核心邏輯：
-1. 組裝 prompt (注入模組 B 的 Company Profile + 選定 JD + 模組 A 的背景欄位)
-2. 呼叫 OpenAI API, 使用 response_format 強制回傳結構化 JSON (與模組 A 一致)
-3. 解析回傳的 JSON, 對應到 CandidatePersona schema
-"""
 
 
 load_dotenv()

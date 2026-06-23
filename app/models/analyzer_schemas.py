@@ -1,6 +1,3 @@
-from pydantic import BaseModel, Field
-from typing import Optional
-
 """
 模組 A：JD Attraction Analyzer
 輸入一份職缺描述（JD），系統透過規則層 + AI 層混合評分，
@@ -18,6 +15,10 @@ from typing import Optional
      - tone_analysis：80-100 字的整體語氣分析
      - improvement_suggestions：三條【問題】→【原因】→【建議】結構化改善建議
 """
+
+
+from pydantic import BaseModel, Field
+from typing import Optional
 
 
 # ── 輸入 Schema ──────────────────────────────────────────

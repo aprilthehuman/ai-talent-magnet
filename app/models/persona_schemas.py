@@ -1,9 +1,3 @@
-# app/models/persona_schemas.py
-
-from pydantic import BaseModel, Field
-from typing import Literal
-from app.models.rewriter_schemas import CompanyProfile
-
 """
 模組 D：Candidate Persona Generator
 輸入整合模組 A（job_title、company_type、industry、seniority_level）
@@ -14,6 +8,12 @@ from app.models.rewriter_schemas import CompanyProfile
   - EducationPreference：HR 填寫的學歷參考條件，影響 Persona 描述與下游 Sourcing 策略
   - education_preference 原樣帶出至 GeneratePersonaResponse，讓模組 E 直接接收
 """
+
+
+from pydantic import BaseModel, Field
+from typing import Literal
+from app.models.rewriter_schemas import CompanyProfile
+
 
 # ── 學歷等級合法選項 ──────────────────────────────────────
 # 用 Literal 限制，避免 HR 填入不合法的值

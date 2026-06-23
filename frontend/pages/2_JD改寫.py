@@ -1,11 +1,12 @@
-import streamlit as st
-import requests
-import re
-
 """
 Module B：JD Rewrite AI
 讓使用者填寫 Company Profile，呼叫後端 API，顯示三種改寫版本
 """
+
+
+import streamlit as st
+import requests
+import re
 
 
 # ── 強制流程順序：必須先完成 Module A 才能進入此頁 ────────

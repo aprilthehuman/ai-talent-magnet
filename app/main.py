@@ -1,11 +1,13 @@
-from fastapi import FastAPI
-from app.routers import analyzer, rewriter, persona, sourcing  # 加入 sourcing
-
 """
 1. 建立 API 主程式(app)
 2. 把不同功能模組接進來(router)
 3. 定義一個測試用 endpoint(/)
 """
+
+
+from fastapi import FastAPI
+from app.routers import analyzer, rewriter, persona, sourcing  # 加入 sourcing
+
 
 app = FastAPI(
     title="AI Talent Magnet",

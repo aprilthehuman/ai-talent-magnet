@@ -1,12 +1,19 @@
+"""
+模組 B：JD Rewrite AI
+輸入包含原始 JD 與巢狀的 CompanyProfile
+（company_name、culture_keywords、vision、manager_style、
+tone_preference、must_include、must_avoid、industry_context）
+輸出三種風格的改寫版本（Startup 風、穩定企業風、高成長挑戰型）與改寫重點說明
+
+設計重點：
+  - CompanyProfile 為巢狀物件，讓改寫結果真正貼近公司個性而非通用模板
+  - must_avoid 關鍵字由 service 層後處理驗證，確保禁用詞不出現在輸出中
+  - must_include 注入 prompt，由 LLM 負責自然融入改寫結果
+"""
+
+
 from pydantic import BaseModel
 
-"""
-1. 匯入建立資料模型需要的工具(BaseModel)
-2. 建立巢狀物件 CompanyProfile, 描述公司文化、願景、改寫規則
-3. 建立 API 接收用的輸入格式(RewriteJDRequest), 包含原始 JD 與巢狀的 CompanyProfile
-4. 建立 API 回傳用的輸出格式(RewriteJDResponse), 包含三種風格的改寫結果
-5. 讓 FastAPI 可以自動驗證巢狀資料結構、產生文件、整理 JSON 格式
-"""
 
 class CompanyProfile(BaseModel):
     company_name: str

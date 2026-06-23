@@ -1,12 +1,3 @@
-import os
-import json
-from openai import OpenAI
-from dotenv import load_dotenv
-from app.models.sourcing_schemas import SourcingRequest, SourcingResult, PlatformRecommendation
-from app.core.keyword_dicts import TITLE_SYNONYMS, TITLE_SYNONYMS_REVERSE
-from app.core.prompts import sourcing_prompts
-
-
 """
 模組 E：AI Sourcing Assistant — Service 層
 
@@ -21,6 +12,16 @@ from app.core.prompts import sourcing_prompts
 
 主函式 generate_sourcing_result() 統籌呼叫以上兩類，組裝成完整的 SourcingResult。
 """
+
+
+import os
+import json
+from openai import OpenAI
+from dotenv import load_dotenv
+from app.models.sourcing_schemas import SourcingRequest, SourcingResult, PlatformRecommendation
+from app.core.keyword_dicts import TITLE_SYNONYMS, TITLE_SYNONYMS_REVERSE
+from app.core.prompts import sourcing_prompts
+
 
 
 load_dotenv()

@@ -1,6 +1,3 @@
-from app.models.sourcing_schemas import SourcingRequest
-
-
 """
 模組 E：AI Sourcing Assistant — Prompt 層
 
@@ -13,6 +10,9 @@ from app.models.sourcing_schemas import SourcingRequest
 比在 user prompt 最後才說「請回傳 JSON」更穩定，
 因為 system 層級的指令優先度比 user 層級高。
 """
+
+
+from app.models.sourcing_schemas import SourcingRequest
 
 
 # ── System Prompt ─────────────────────────────────────────

@@ -1,3 +1,19 @@
+"""
+模組 A：JD Attraction Analyzer — Service 層
+核心邏輯：規則層 + AI 層混合評分，計算 JD 吸引力分數
+
+規則層（最高扣 60 分）：
+  - detect_negative_keywords()：掃描負面詞彙，每個扣 5 分
+  - detect_vague_phrases()：掃描模糊用語，每個扣 3 分
+  - detect_missing_elements()：檢查缺失重要資訊，依項目扣分
+
+AI 層（0–40 分）：
+  - analyze_tone_with_ai()：呼叫 LLM 分析語氣整體感受，產出分數、描述與改善建議
+
+最終分數公式：min(100, max(0, 60 + AI層分數 - 規則層扣分))
+"""
+
+
 import os
 import json
 from openai import OpenAI
@@ -9,6 +25,7 @@ from app.core.keyword_dicts import (
     MISSING_PENALTY
 )
 from app.models.analyzer_schemas import AnalyzeJDRequest, AnalyzeJDResponse, MissingElement
+
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))

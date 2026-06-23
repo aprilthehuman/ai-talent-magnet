@@ -1,11 +1,13 @@
-import streamlit as st
-import requests
-
 """
 Module D：Candidate Persona Generator
 從 session_state 帶入 Module A + B 的所有結果
 使用者不需要重複填寫任何資訊
 """
+
+
+import streamlit as st
+import requests
+
 
 # ── 強制流程順序：必須先完成 Module A 和 B 才能進入此頁 ────────────
 if not st.session_state.get("module_a_result"):

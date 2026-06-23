@@ -1,8 +1,3 @@
-from pydantic import BaseModel, Field
-from typing import Literal
-from app.models.persona_schemas import EducationPreference
-
-
 """
 模組 E：AI Sourcing Assistant
 輸入整合模組 A（job_title）與模組 D（persona 完整欄位 + education_preference），
@@ -18,6 +13,11 @@ HR 不需重複填寫任何資訊，只需選填 additional_keywords 與 exclude
      - outreach_message_template：整合 Persona 溝通偏好與顧慮生成個人化訊息
      - sourcing_tips：針對此職缺與候選人特性給出實戰 sourcing 建議
 """
+
+
+from pydantic import BaseModel, Field
+from typing import Literal
+from app.models.persona_schemas import EducationPreference
 
 
 # ── 輸入 Schema ──────────────────────────────────────────

@@ -1,10 +1,10 @@
-import streamlit as st
-
-
 """
 AI Talent Magnet — Streamlit 前端主入口
 架構：多頁面應用，每個 Module 是獨立頁面
 """
+
+
+import streamlit as st
 
 
 # ── 頁面基本設定 ──────────────────────────────────────────
