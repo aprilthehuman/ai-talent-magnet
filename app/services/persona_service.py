@@ -1,6 +1,6 @@
 """
 模組 D 核心邏輯：
-1. 組裝 prompt (注入模組 B 的 Company Profile + 選定 JD + 模組 A 的背景欄位)
+1. 組裝 prompt (注入模組 B 的 Company Profile + 選定 JD + 模組 A 的背景欄位 + 學歷參考條件)
 2. 呼叫 OpenAI API, 使用 response_format 強制回傳結構化 JSON (與模組 A 一致)
 3. 解析回傳的 JSON, 對應到 CandidatePersona schema
 """
@@ -33,6 +33,15 @@ def generate_persona(request: GeneratePersonaRequest) -> GeneratePersonaResponse
         context_parts.append(f"年資層級：{request.seniority_level}")
     context_str = "\n".join(context_parts) if context_parts else "（未提供）"
 
+    # 組裝學歷參考條件
+    edu = request.education_preference
+    if edu:
+        edu_str = f"學歷參考條件：{edu.level}"
+        if edu.notes:
+            edu_str += f"（{edu.notes}）"
+    else:
+        edu_str = "學歷參考條件：不限"
+
     # 組裝模組 B 的 Company Profile
     profile = request.company_profile
     culture_str = "、".join(profile.culture_keywords)
@@ -47,6 +56,7 @@ def generate_persona(request: GeneratePersonaRequest) -> GeneratePersonaResponse
     【職缺背景】
     職稱：{request.job_title}
     {context_str}
+    {edu_str}（作為參考，非硬性要求，反映在 likely_background 的描述中即可）
 
     【公司背景】
     公司名稱：{profile.company_name}
@@ -64,7 +74,7 @@ def generate_persona(request: GeneratePersonaRequest) -> GeneratePersonaResponse
     請用以下 JSON 格式回答，不要加任何其他文字：
     {{
         "ideal_seniority": "理想年資區間，例：3–5 年",
-        "likely_background": ["2–4 條可能的職涯背景描述"],
+        "likely_background": ["2–4 條可能的職涯背景描述，反映學歷參考條件"],
         "key_skills": ["4–6 個核心技能"],
         "candidate_motivators": ["3–5 個這類候選人在意的面向"],
         "likely_concerns": ["2–4 個可能的顧慮"],
@@ -84,5 +94,6 @@ def generate_persona(request: GeneratePersonaRequest) -> GeneratePersonaResponse
 
     return GeneratePersonaResponse(
         job_title=request.job_title,
-        persona=persona
+        persona=persona,
+        education_preference=request.education_preference  # 原樣帶出供 Module E 接收
     )

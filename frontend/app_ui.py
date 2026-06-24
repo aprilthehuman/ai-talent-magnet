@@ -29,6 +29,9 @@ if "module_b_result" not in st.session_state:
 if "module_d_result" not in st.session_state:
     st.session_state["module_d_result"] = None   # Module D 的 Persona 結果
 
+if "module_e_result" not in st.session_state:
+    st.session_state["module_e_result"] = None   # Module E 的 Sourcing 結果
+
 if "company_profile" not in st.session_state:
     st.session_state["company_profile"] = None   # 共用的 Company Profile
 
@@ -39,9 +42,12 @@ if "original_jd" not in st.session_state:
     st.session_state["original_jd"] = ""         # 原始 JD 文字，A/B 共用
 
 if "target_candidate_focus" not in st.session_state:
-    st.session_state["target_candidate_focus"] = None        # Module B 收集的目標候選人特質，獨立存放（不在 company_profile 內）
+    st.session_state["target_candidate_focus"] = None   # Module B 收集的目標候選人特質，獨立存放（不在 company_profile 內）
 
-# Module A 收集的"job_title"與三個選填欄位，因為不在 AnalyzeJDResponse 輸出裡，需要獨立存放
+if "education_preference" not in st.session_state:
+    st.session_state["education_preference"] = None     # Module D 收集的學歷參考條件，供 Module E 使用
+
+# Module A 收集的 job_title 與三個選填欄位，因為不在 AnalyzeJDResponse 輸出裡，需要獨立存放
 if "job_title" not in st.session_state:
     st.session_state["job_title"] = ""
 
@@ -59,9 +65,8 @@ if "seniority_level" not in st.session_state:
 st.title("🧲 AI Talent Magnet")
 st.subheader("以 AI 技術提升企業招募吸引力的系統")
 
-st.markdown("---")   # 水平分隔線
+st.markdown("---")
 
-# st.markdown() 支援 Markdown 語法，適合寫說明文字
 st.markdown("""
 ### 使用流程
 
@@ -70,16 +75,15 @@ st.markdown("""
 1. **JD 吸引力分析**（左側選單）→ 分析你的 JD 有哪些問題
 2. **JD 改寫**（左側選單）→ 根據公司文化產出三種改寫版本
 3. **候選人 Persona**（左側選單）→ 反推理想候選人樣貌
+4. **Sourcing 助手**（左側選單）→ 生成搜尋語法與主動聯繫訊息
 """)
 
 st.markdown("---")
 
 # st.columns() 把頁面切成幾欄並排顯示
-# 這裡切成三欄，顯示三個模組的狀態
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    # st.metric() 是一個顯示數字指標的元件，有大標題和說明文字
     status_a = "✅ 已完成" if st.session_state["module_a_result"] else "⏳ 尚未執行"
     st.metric(label="Module A：JD 分析", value=status_a)
 
@@ -91,6 +95,9 @@ with col3:
     status_d = "✅ 已完成" if st.session_state["module_d_result"] else "⏳ 尚未執行"
     st.metric(label="Module D：人才 Persona", value=status_d)
 
+with col4:
+    status_e = "✅ 已完成" if st.session_state["module_e_result"] else "⏳ 尚未執行"
+    st.metric(label="Module E：Sourcing 助手", value=status_e)
+
 st.markdown("---")
-st.caption("版本 v1.4.0 ‧ 作者：April")
-# st.caption() 是小字說明，適合放版本號、備註等次要資訊
+st.caption("版本 v1.5.3 ‧ 作者：April")

@@ -2,6 +2,7 @@
 Module D：Candidate Persona Generator
 從 session_state 帶入 Module A + B 的所有結果
 使用者不需要重複填寫任何資訊
+新增：education_preference 學歷參考條件（選填），存進 session_state 供 Module E 使用
 """
 
 
@@ -14,8 +15,6 @@ if not st.session_state.get("module_a_result"):
     st.warning("⚠️ 請先完成「JD 分析」再繼續。")
     st.stop()
 
-# 檢查 selected_jd 比 module_b_result 更精確
-# 使用者可能跑完改寫但忘記選定版本
 if not st.session_state.get("selected_jd"):
     st.warning("⚠️ 請先完成「JD 改寫」並選擇一個版本再繼續。")
     st.stop()
@@ -27,7 +26,6 @@ st.markdown("---")
 # ── 確認前置資料是否齊全 ──────────────────────────────────
 ready = True
 
-# st.stop() 已確保 selected_jd 一定有值，直接顯示即可
 st.markdown("### 📄 已選定的 JD 版本")
 st.text_area(
     "selected_jd",
@@ -37,11 +35,24 @@ st.text_area(
     label_visibility="collapsed"
 )
 
-# 檢查 company_profile（從 Module B 帶入）
 if not st.session_state.get("company_profile"):
     st.warning("⚠️ 尚未填寫 Company Profile，請先完成「JD 改寫」。")
     ready = False
-# else 不顯示任何內容，資料已在 expander 裡完整呈現
+
+st.markdown("---")
+
+# ── 學歷條件（選填）────────────────────────────────────────
+st.markdown("### 🎓 學歷參考條件（選填）")
+st.markdown("作為參考條件，影響 Persona 描述與下游 Sourcing 策略。")
+
+edu_level = st.selectbox(
+    "學歷要求",
+    options=["不限", "大學", "碩士", "博士"],
+)
+edu_notes = st.text_input(
+    "補充說明（選填）",
+    placeholder="例：台清交成優先、國外碩士加分"
+)
 
 st.markdown("---")
 
@@ -52,23 +63,29 @@ if st.button(
     use_container_width=True,
     disabled=not ready
 ):
+    # 組裝 education_preference
+    # 選「不限」且沒有補充說明時，視為沒有學歷條件，傳 None 給後端
+    education_preference = None
+    if edu_level != "不限" or edu_notes:
+        education_preference = {
+            "level": edu_level,
+            "notes": edu_notes if edu_notes else None
+        }
+    st.session_state["education_preference"] = education_preference
+
     with st.spinner("AI 分析理想候選人中..."):
         try:
             response = requests.post(
                 "http://localhost:8000/api/v1/generate-persona",
                 json={
-                    # 從 Module A 帶入：職稱與三個選填欄位
-                    # 這四個都是使用者輸入的資料，在 1_JD分析.py 送出成功後獨立存進 session_state
-                    # 不從 module_a_result 讀，因為 AnalyzeJDResponse 只有分析結果，沒有輸入欄位
                     "job_title": st.session_state.get("job_title", ""),
                     "company_type": st.session_state.get("company_type"),
                     "industry": st.session_state.get("industry"),
                     "seniority_level": st.session_state.get("seniority_level"),
-                    # 從 Module B 帶入：選定的 JD 版本、Company Profile、目標候選人特質
-                    # 這三個在 2_JD改寫.py 送出成功後存進 session_state
                     "job_description_text": st.session_state["selected_jd"],
                     "company_profile": st.session_state["company_profile"],
                     "target_candidate_focus": st.session_state.get("target_candidate_focus"),
+                    "education_preference": education_preference,  # ← 新增
                 },
                 timeout=60,
             )
@@ -91,33 +108,23 @@ if st.button(
 # ── 結果顯示區 ────────────────────────────────────────────
 if st.session_state.get("module_d_result"):
     result = st.session_state["module_d_result"]
-
-    # 結果被包在 persona 這一層裡，要先取出來
     persona = result.get("persona", {})
 
     st.markdown("## 🎯 理想候選人 Persona")
     st.markdown(f"**職稱：** {result.get('job_title', '-')}")
 
-    # ── 本次分析使用的資料（expander 收起，需要確認時才展開）──
     with st.expander("📋 本次分析使用的資料（展開確認）"):
-
         col1, col2 = st.columns(2)
 
         with col1:
             st.markdown("**從 Module A 帶入**")
             st.markdown(f"- 職稱：{st.session_state.get('job_title', '（未填）')}")
-
-            # 公司類型、產業、資歷層級從獨立的 session_state key 讀取
-            # 不從 module_a_result 讀，因為這三個是輸入欄位（AnalyzeJDRequest）
-            # 不是後端分析結果（AnalyzeJDResponse），所以 module_a_result 裡找不到
             st.markdown(f"- 公司類型：{st.session_state.get('company_type') or '（未填）'}")
             st.markdown(f"- 產業：{st.session_state.get('industry') or '（未填）'}")
             st.markdown(f"- 資歷層級：{st.session_state.get('seniority_level') or '（未填）'}")
 
         with col2:
             st.markdown("**從 Module B 帶入**")
-
-            # company_profile 是巢狀字典，逐欄位顯示
             profile = st.session_state.get("company_profile") or {}
             st.markdown(f"- 公司名稱：{profile.get('company_name', '（未填）')}")
             st.markdown(f"- 公司願景：{profile.get('vision', '（未填）')}")
@@ -129,14 +136,23 @@ if st.session_state.get("module_d_result"):
             st.markdown(f"- 產業背景：{profile.get('industry_context') or '（未填）'}")
             st.markdown(f"- 目標候選人特質：{st.session_state.get('target_candidate_focus') or '（未填）'}")
 
+        # 學歷條件獨立顯示
+        st.markdown("**HR 補充**")
+        edu = st.session_state.get("education_preference")
+        if edu:
+            edu_display = edu["level"]
+            if edu.get("notes"):
+                edu_display += f"（{edu['notes']}）"
+            st.markdown(f"- 學歷條件：{edu_display}")
+        else:
+            st.markdown("- 學歷條件：（未填）")
+
     st.markdown("---")
 
     col1, col2 = st.columns(2)
     with col1:
-        # 理想年資是短文字，適合用 metric 顯示
         st.metric("理想年資", persona.get("ideal_seniority", "-"))
     with col2:
-        # 建議溝通語氣可能是長句子，改用一般文字顯示避免截斷
         st.markdown("**建議溝通語氣**")
         st.markdown(persona.get("preferred_message_style", "-"))
 
@@ -174,4 +190,4 @@ if st.session_state.get("module_d_result"):
                 st.info(channel)
 
     st.markdown("---")
-    st.success("✅ Phase 1 三個核心模組全部完成！")
+    st.success("✅ 選定版本後，請前往左側選單的「Sourcing 助手」繼續下一步。")
