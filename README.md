@@ -2,7 +2,7 @@
 
 > 一個幫企業提升招募吸引力的 AI 系統，從被動等履歷轉為主動提升職缺競爭力。
 
-**作者：** April ｜ **版本：** v1.4.0 ｜ **開發狀態：** Phase 1 完成 ✅（Module A、B、D + Streamlit 前端）
+**作者：** April ｜ **版本：** v1.5.3 ｜ **開發狀態：** Phase 2 進行中（Module A、B、D、E + Streamlit 前端完成 ✅）
 
 ---
 
@@ -14,7 +14,7 @@
 
 ---
 
-## 模組架構（v1.4.0，共 7 個模組）
+## 模組架構（v1.5.3，共 7 個模組）
 
 | 模組 | 功能 | 狀態 |
 |------|------|------|
@@ -22,7 +22,7 @@
 | **B** JD Rewrite AI | 根據 Company Profile 產出三種風格的改寫版本 | ✅ 已完成 |
 | **C** Salary Competitiveness Detector | AI 混合模式評估薪資市場競爭力 | 📋 Phase 2 |
 | **D** Candidate Persona Generator | 反推理想候選人樣貌、動機與溝通方式 | ✅ 已完成 |
-| **E** AI Sourcing Assistant | 生成 Boolean search string，降低主動 sourcing 門檻 | 📋 Phase 2 |
+| **E** AI Sourcing Assistant | 生成五種平台 Boolean search string 與通用破冰訊息，降低主動 sourcing 門檻 | ✅ 已完成 |
 | **F** HR Knowledge Copilot | RAG 技術建立招募知識庫，自然語言查詢歷史 JD | 📋 Phase 3 |
 | **G** AI Orchestration Agent | 自然語言一句話觸發完整流程，LangChain Agent 串聯所有模組 | 📋 Phase 3 |
 
@@ -34,8 +34,8 @@
 前端    Streamlit（MVP）
 後端    FastAPI + Uvicorn
 AI 模型  OpenAI GPT-4o-mini
-框架    LangChain + LangGraph（Module G）
-向量庫  ChromaDB（Module F）
+框架    LangChain + LangGraph（Module G，Phase 3）
+向量庫  ChromaDB（Module F，Phase 3）
 資料驗證 Pydantic v2
 語言    Python 3.11
 ```
@@ -46,33 +46,38 @@ AI 模型  OpenAI GPT-4o-mini
 
 ```
 portfolio/
-├── main.py                         # FastAPI 主程式，掛載所有 Router
-├── .env                            # API Key（不納入版控）
+├── main.py                          # FastAPI 主程式，掛載所有 Router
+├── .env                             # API Key（不納入版控）
 ├── .gitignore
 ├── requirements.txt
 ├── frontend/
-│   ├── app_ui.py                   # Streamlit 首頁
+│   ├── app_ui.py                    # Streamlit 首頁
 │   └── pages/
-│       ├── 1_JD分析.py             # Module A 介面
-│       ├── 2_JD改寫.py             # Module B 介面
-│       └── 3_人才畫像.py           # Module D 介面
+│       ├── 1_JD分析.py              # Module A 介面
+│       ├── 2_JD改寫.py              # Module B 介面
+│       ├── 3_人才畫像.py            # Module D 介面
+│       └── 4_Sourcing助手.py        # Module E 介面
 └── app/
     ├── core/
-    │   ├── prompts/                # Prompt templates（各模組）
-    │   └── keyword_dicts.py        # Module A 負面詞彙與模糊用語字典
-    ├── data/                       # 參考資料集（Module C 薪資對照，Phase 2 使用）
+    │   ├── prompts/
+    │   │   └── sourcing_prompts.py  # Module E Prompt templates
+    │   └── keyword_dicts.py         # 負面詞彙、模糊用語字典（Module A）+ 職稱同義詞字典（Module E）
+    ├── data/                        # 參考資料集（Module C 薪資對照，Phase 2 使用）
     ├── routers/
-    │   ├── analyzer.py             # Module A Router
-    │   ├── rewriter.py             # Module B Router
-    │   └── persona.py              # Module D Router
+    │   ├── analyzer.py              # Module A Router
+    │   ├── rewriter.py              # Module B Router
+    │   ├── persona.py               # Module D Router
+    │   └── sourcing.py              # Module E Router
     ├── models/
-    │   ├── analyzer_schemas.py     # Module A Schemas
-    │   ├── rewriter_schemas.py     # Module B Schemas（含 CompanyProfile）
-    │   └── persona_schemas.py      # Module D Schemas（import CompanyProfile）
+    │   ├── analyzer_schemas.py      # Module A Schemas
+    │   ├── rewriter_schemas.py      # Module B Schemas（含 CompanyProfile）
+    │   ├── persona_schemas.py       # Module D Schemas（含 EducationPreference）
+    │   └── sourcing_schemas.py      # Module E Schemas
     └── services/
-        ├── analyzer_service.py     # Module A 商業邏輯
-        ├── rewriter_service.py     # Module B 商業邏輯
-        └── persona_service.py      # Module D 商業邏輯
+        ├── analyzer_service.py      # Module A 商業邏輯
+        ├── rewriter_service.py      # Module B 商業邏輯
+        ├── persona_service.py       # Module D 商業邏輯
+        └── sourcing_service.py      # Module E 商業邏輯
 ```
 
 ---
@@ -88,7 +93,7 @@ portfolio/
 
 ```bash
 # 1. Clone 專案
-git clone https://github.com/<your-username>/ai-talent-magnet.git
+git clone https://github.com/aprilthehuman/ai-talent-magnet.git
 cd ai-talent-magnet
 
 # 2. 建立 conda 環境
@@ -125,7 +130,7 @@ streamlit run frontend/app_ui.py
 
 **功能：** 分析 JD 吸引力，找出降低候選人投遞意願的問題。
 
-**API：** `POST /api/v1/analyze`
+**API：** `POST /api/v1/analyze-jd`
 
 **請求範例：**
 ```json
@@ -158,7 +163,7 @@ streamlit run frontend/app_ui.py
 
 **功能：** 根據 Company Profile 與原始 JD，產出 3 種風格的改寫版本，HR 選定後帶入 Module D。
 
-**API：** `POST /api/v1/rewrite`
+**API：** `POST /api/v1/rewrite-jd`
 
 **請求範例：**
 ```json
@@ -186,7 +191,7 @@ streamlit run frontend/app_ui.py
 | 穩定企業風 | 中大型企業、傳產數位化 | 制度、福利、穩定發展 |
 | 高成長挑戰型 | SaaS、AI 公司 | 技術深度、學習、快速升級 |
 
-**Guardrail 機制：** 檢查輸出是否包含 `must_avoid` 詞彙，並驗證 `must_include` 訊息是否有帶到，保護輸出品質。
+**Guardrail 機制：** 輸出後掃描 `must_avoid` 詞彙，若出現則在文末附上警告提示，要求 HR 手動修改；`must_include` 注入 prompt，由 LLM 負責自然融入改寫結果。
 
 ---
 
@@ -196,7 +201,7 @@ streamlit run frontend/app_ui.py
 
 **API：** `POST /api/v1/generate-persona`
 
-**設計說明：** Module D 不接受原始未改寫的 JD，而是要求帶入 Module B 選定的改寫版本與 Company Profile，確保 Persona 反映公司真正的文化與期待。所有欄位可從 Module A 或 Module B 帶入，使用者無需重複填寫。
+**設計說明：** Module D 不接受原始未改寫的 JD，而是要求帶入 Module B 選定的改寫版本與 Company Profile，確保 Persona 反映公司真正的文化與期待。所有欄位可從 Module A 或 Module B 帶入，使用者無需重複填寫。HR 可在此頁面選填學歷參考條件（`education_preference`），系統原樣帶出至 Module E。
 
 **請求範例：**
 ```json
@@ -207,7 +212,11 @@ streamlit run frontend/app_ui.py
   "target_candidate_focus": "重視技術成長的工程師",
   "company_type": "startup",
   "industry": "SaaS",
-  "seniority_level": "mid"
+  "seniority_level": "mid",
+  "education_preference": {
+    "level": "碩士",
+    "notes": "台清交成優先"
+  }
 }
 ```
 
@@ -222,8 +231,49 @@ streamlit run frontend/app_ui.py
 | `likely_concerns` | array | 可能的顧慮 |
 | `preferred_message_style` | string | 建議 HR 的溝通語氣 |
 | `likely_channels` | array | 這類人常出現的平台 |
+| `education_preference` | object or null | HR 填寫的學歷條件原樣帶出，供 Module E 接收 |
 
-**模組資料流：** Module A（job_title、company_type、industry、seniority_level）→ Module B（company_profile、target_candidate_focus、改寫 JD）→ Module D
+**模組資料流：** Module A（job_title、company_type、industry、seniority_level）→ Module B（company_profile、target_candidate_focus、改寫 JD）→ Module D（education_preference）→ Module E
+
+---
+
+## Module E — AI Sourcing Assistant
+
+**功能：** 將 Module D 的候選人 Persona 轉換為可執行的 sourcing 工具，包含五種平台 Boolean search string、通用破冰聯繫訊息草稿，以及針對此職缺的實戰 sourcing 建議。
+
+**API：** `POST /api/v1/generate-sourcing`
+
+**設計說明：** 所有欄位從 Module A 和 Module D 自動帶入，HR 只需選填 `additional_keywords` 與 `exclude_keywords`。Boolean string 由純 Python 邏輯組裝（不呼叫 LLM），outreach 訊息與 sourcing_tips 由 LLM 生成。
+
+**請求範例：**
+```json
+{
+  "job_title": "Python Backend Engineer",
+  "key_skills": ["Python", "FastAPI", "PostgreSQL"],
+  "ideal_seniority": "3–5 年",
+  "likely_channels": ["LinkedIn", "CakeResume"],
+  "likely_background": ["曾在新創擔任後端工程師"],
+  "candidate_motivators": ["技術挑戰", "彈性工時"],
+  "likely_concerns": ["公司穩定性"],
+  "preferred_message_style": "直接簡短，重視技術內容",
+  "education_preference": { "level": "碩士", "notes": "台清交成優先" },
+  "additional_keywords": ["Docker"],
+  "exclude_keywords": ["manager"]
+}
+```
+
+**回應欄位：**
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `expanded_titles` | array | 職稱同義展開結果 |
+| `boolean_string_linkedin` | string | LinkedIn 內建搜尋語法（需帳號） |
+| `boolean_string_google_linkedin` | string | Google X-Ray 搜尋 LinkedIn（免費） |
+| `boolean_string_cake` | string | CakeResume 內建搜尋語法（需帳號），中文職稱優先 |
+| `boolean_string_google_cake` | string | Google X-Ray 搜尋 CakeResume（免費） |
+| `boolean_string_google_104` | string | Google X-Ray 搜尋 104（主動搜尋履歷需企業帳號） |
+| `outreach_message_template` | string | 通用破冰聯繫訊息，100 字以內，結尾留開放式問句 |
+| `sourcing_tips` | array | 針對此職缺與候選人特性的實戰 sourcing 建議 |
 
 ---
 
@@ -231,18 +281,22 @@ streamlit run frontend/app_ui.py
 
 ### 技術決策亮點
 
-- **Python 3.10+ union syntax** — 全程使用 `str | None` 取代 `Optional[str]`
+- **Pydantic Field 結構化 Schema** — 使用 `Field(..., description=)` 明確標註每個欄位的必填性與說明，搭配 `default_factory=list` 避免 mutable default 陷阱；選填欄位採用 Python 3.11 native `str | None` 語法
 - **結構化輸出** — 全模組使用 `response_format={"type": "json_object"}` 確保 LLM 輸出可解析
-- **Schema 複用** — Module D 直接 import `CompanyProfile` from `rewriter_schemas.py`，Module A schema 獨立於 `analyzer_schemas.py`，不重複定義
-- **Guardrail 設計** — Module B 實作 `must_avoid` 後處理驗證，violation 標記為 warning（MVP 不自動 retry）
+- **Schema 複用** — Module D 直接 import `CompanyProfile` from `rewriter_schemas.py`；Module E import `EducationPreference` from `persona_schemas.py`
+- **Guardrail 設計** — Module B 實作 `must_avoid` 後處理驗證，violation 標記為 warning
 - **AI 混合評分** — Module A 採用規則層 + AI 層，避免完全依賴 LLM 造成不穩定
+- **Prompt 層分離** — Module E 的 prompt 獨立於 `sourcing_prompts.py`，service 層只負責組裝與呼叫
+- **職稱同義詞字典雙層查詢** — 正向字典 + 自動產生的反向索引，查無結果時 fallback 至 LLM 即時展開
+- **同步函式統一** — 所有 router endpoint 使用 `def`（非 `async def`），service 層無 `await`，避免阻塞事件迴圈
 
 ### 開發階段規劃
 
 ```
 Phase 1（✅ 完成）：Module A、B、D + Streamlit 前端
-Phase 2：Module C（薪資競爭力）、Module E（Sourcing 助手）
+Phase 2（進行中）：Module E（✅ 已完成）、Module C（薪資競爭力，待開發）
 Phase 3：Module F（RAG 知識庫）、Module G（AI Agent 串聯）
+Phase 4：部署（Docker + Railway）
 ```
 
 ---
@@ -255,7 +309,7 @@ Phase 3：Module F（RAG 知識庫）、Module G（AI Agent 串聯）
 
 ## 相關連結
 
-- 📄 [企劃書 v1.4.0]（附於 repo 中）
+- 📄 [企劃書 v1.5.3]（附於 repo 中）
 - 🔗 API 文件：啟動後端後至 `http://localhost:8000/docs` 查看
 
 ---
