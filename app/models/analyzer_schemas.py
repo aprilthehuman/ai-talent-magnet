@@ -18,7 +18,6 @@
 
 
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 # ── 輸入 Schema ──────────────────────────────────────────
@@ -38,15 +37,15 @@ class AnalyzeJDRequest(BaseModel):
         ...,
         description="完整 JD 文字，建議 100–5000 字"
     )
-    company_type: Optional[str] = Field(
+    company_type: str | None = Field(
         default=None,
         description="公司類型，例：startup / SME / enterprise。傳入 AI 層，影響語氣分析角度"
     )
-    industry: Optional[str] = Field(
+    industry: str | None = Field(
         default=None,
         description="產業類型，例：SaaS / 電商 / 金融。傳入 AI 層，影響語氣分析角度"
     )
-    seniority_level: Optional[str] = Field(
+    seniority_level: str | None = Field(
         default=None,
         description="年資層級，例：junior / mid / senior。傳入 AI 層，影響語氣分析角度"
     )
