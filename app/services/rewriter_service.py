@@ -5,7 +5,7 @@
 函式職責：
   - build_prompt()：將 CompanyProfile 欄位與風格指令組裝成完整 prompt
   - check_must_avoid()：Guardrail 後處理，掃描 LLM 輸出是否含有禁用詞
-  - rewrite_jd()：主函式，串聯以上兩個函式，回傳三種風格的改寫結果
+  - rewrite_jd()：主函式，三種風格平行呼叫 OpenAI，套用 Guardrail 後回傳
 
 Guardrail 設計：
   - must_avoid：後處理掃描，違規時在輸出文末附上警告，提示 HR 手動修改
@@ -14,6 +14,7 @@ Guardrail 設計：
 
 
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from openai import OpenAI
 from dotenv import load_dotenv
 from app.models.rewriter_schemas import RewriteJDRequest, RewriteJDResponse
@@ -21,6 +22,7 @@ from app.models.rewriter_schemas import RewriteJDRequest, RewriteJDResponse
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 
 def build_prompt(original_jd: str, profile, style: str, target_candidate_focus: str | None) -> str:
     """
@@ -52,7 +54,6 @@ def build_prompt(original_jd: str, profile, style: str, target_candidate_focus: 
 必須帶到的訊息：{must_include_str}
 絕對不可出現的詞：{must_avoid_str}
 {target_str}
-
 【改寫規則】
 1. {style_instructions[style]}
 2. 語氣必須符合上述公司背景
@@ -79,28 +80,27 @@ def check_must_avoid(text: str, must_avoid: list[str]) -> list[str]:
 
 def rewrite_jd(request: RewriteJDRequest) -> RewriteJDResponse:
     """
-    模組 B 主函式：對三種風格各呼叫一次 OpenAI, 套用 Guardrail 後回傳
+    模組 B 主函式：三種風格平行呼叫 OpenAI，套用 Guardrail 後回傳。
+    使用 ThreadPoolExecutor 將三次 API 呼叫同時送出，
+    總等待時間從「三次加總」降為「最慢那次」，約快 2–3 倍。
     """
     profile = request.company_profile
     styles = ["startup", "stable_enterprise", "high_growth"]
     results = {}
 
-    for style in styles:
-        # 依風格組裝 prompt
+    def call_openai(style: str) -> tuple[str, str]:
+        """單一風格的 prompt 組裝 + API 呼叫 + Guardrail，供 ThreadPoolExecutor 呼叫"""
         prompt = build_prompt(
             original_jd=request.original_jd,
             profile=profile,
             style=style,
             target_candidate_focus=request.target_candidate_focus
         )
-
-        # 呼叫 OpenAI API，temperature 0.7 給予較多創意空間
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
-
         output_text = response.choices[0].message.content.strip()
 
         # Guardrail：若輸出含有禁用詞，在文末加上警告提示
@@ -108,7 +108,14 @@ def rewrite_jd(request: RewriteJDRequest) -> RewriteJDResponse:
         if violations:
             output_text += f"\n\n⚠️ 注意：以下禁用詞仍出現在輸出中，請手動修改：{violations}"
 
-        results[style] = output_text
+        return style, output_text
+
+    # 三種風格同時送出，max_workers=3 對應三個 API 呼叫
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(call_openai, style): style for style in styles}
+        for future in as_completed(futures):
+            style, output_text = future.result()
+            results[style] = output_text
 
     # 組裝每個版本的改寫重點說明
     rewrite_notes = [
