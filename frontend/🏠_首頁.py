@@ -26,6 +26,9 @@ if "module_a_result" not in st.session_state:
 if "module_b_result" not in st.session_state:
     st.session_state["module_b_result"] = None   # Module B 的改寫結果
 
+if "module_c_result" not in st.session_state:
+    st.session_state["module_c_result"] = None   # Module C 的薪資競爭力結果
+
 if "module_d_result" not in st.session_state:
     st.session_state["module_d_result"] = None   # Module D 的 Persona 結果
 
@@ -59,6 +62,12 @@ if "industry" not in st.session_state:
 
 if "seniority_level" not in st.session_state:
     st.session_state["seniority_level"] = None
+    
+if "salary_min" not in st.session_state:
+    st.session_state["salary_min"] = None    # Module A 收集的薪資下限
+
+if "salary_max" not in st.session_state:
+    st.session_state["salary_max"] = None    # Module A 收集的薪資上限
 
 
 # ── 首頁內容 ─────────────────────────────────────────────
@@ -74,14 +83,15 @@ st.markdown("""
 
 1. **JD 吸引力分析**（左側選單）→ 分析你的 JD 有哪些問題
 2. **JD 改寫**（左側選單）→ 根據公司文化產出三種改寫版本
-3. **候選人 Persona**（左側選單）→ 反推理想候選人樣貌
-4. **Sourcing 助手**（左側選單）→ 生成搜尋語法與主動聯繫訊息
+3. **候選人 Persona**（左側選單）→ 反推理想候選人樣貌（需先完成 1、2）
+4. **薪資競爭力分析**（左側選單）→ 評估 JD 薪資的市場競爭力（需先完成 1、2、3）
+5. **Sourcing 助手**（左側選單）→ 生成搜尋語法與主動聯繫訊息（需先完成1、2、3）
 """)
 
 st.markdown("---")
 
 # st.columns() 把頁面切成幾欄並排顯示
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     status_a = "✅ 已完成" if st.session_state["module_a_result"] else "⏳ 尚未執行"
@@ -95,7 +105,13 @@ with col3:
     status_d = "✅ 已完成" if st.session_state["module_d_result"] else "⏳ 尚未執行"
     st.metric(label="Module D：人才 Persona", value=status_d)
 
+col4, col5, _ = st.columns(3)
+
 with col4:
+    status_c = "✅ 已完成" if st.session_state["module_c_result"] else "⏳ 尚未執行"
+    st.metric(label="Module C：薪資競爭力", value=status_c)
+
+with col5:
     status_e = "✅ 已完成" if st.session_state["module_e_result"] else "⏳ 尚未執行"
     st.metric(label="Module E：Sourcing 助手", value=status_e)
 

@@ -177,4 +177,7 @@ if st.session_state.get("module_e_result"):
             st.markdown(f"- {tip}")
 
     st.markdown("---")
-    st.success("✅ A → B → D → E 完整流程已走完。")
+    if not st.session_state.get("module_c_result"):
+        st.success("✅ Sourcing 內容生成完成！如需薪資分析，請前往左側選單的「薪資競爭力分析」。")
+    else:
+        st.success("✅ Sourcing 內容生成完成！完整流程已走完。")

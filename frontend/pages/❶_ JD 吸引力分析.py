@@ -19,16 +19,40 @@ st.markdown("---")
 # value= 設定預設值，這裡從 session_state 讀取，
 # 這樣使用者在其他頁面輸入過的 JD 會自動帶入，不用重複貼
 job_title = st.text_input(
-    label="職稱",
+    label="職稱 *",
     placeholder="例：Python Backend Engineer"
 )
 
 job_description = st.text_area(
-    label="職缺描述（JD）",
+    label="職缺描述（JD） *",
     placeholder="把完整的 JD 文字貼在這裡...",
     height=300,
     value=st.session_state["original_jd"]   # 從 session_state 讀取上次的值
 )
+
+
+st.markdown("---")
+st.markdown("### 💰 薪資範圍（選填）")
+st.markdown("填寫後可在模組 C 進行薪資競爭力分析。")
+
+col1, col2 = st.columns(2)
+with col1:
+    salary_min = st.number_input(
+        "月薪下限（元）",
+        min_value=0,
+        step=1000,
+        value=0,
+        help="例：45000"
+    )
+with col2:
+    salary_max = st.number_input(
+        "月薪上限（元）",
+        min_value=0,
+        step=1000,
+        value=0,
+        help="例：70000"
+    )
+
 
 # 進階選項用 expander 收起來，避免頁面太複雜
 # 使用者點開才看到，不影響主要流程
@@ -81,6 +105,8 @@ if st.button("🔍 開始分析", type="primary", use_container_width=True):
                         "company_type": company_type if company_type else None,
                         "industry": industry if industry else None,
                         "seniority_level": seniority if seniority else None,
+                        "salary_min": salary_min if salary_min > 0 else None,
+                        "salary_max": salary_max if salary_max > 0 else None
                     },
                     timeout=30   # 最多等 30 秒，避免無限等待
                 )
@@ -94,6 +120,8 @@ if st.button("🔍 開始分析", type="primary", use_container_width=True):
                     st.session_state["company_type"] = company_type if company_type else None
                     st.session_state["industry"] = industry if industry else None
                     st.session_state["seniority_level"] = seniority if seniority else None
+                    st.session_state["salary_min"] = salary_min if salary_min > 0 else None
+                    st.session_state["salary_max"] = salary_max if salary_max > 0 else None
                     # st.success() 顯示綠色成功訊息
                     st.success("分析完成！")
                     
@@ -104,7 +132,8 @@ if st.button("🔍 開始分析", type="primary", use_container_width=True):
             except requests.exceptions.ConnectionError:
                 # 後端沒有啟動時會出現這個錯誤
                 st.error("無法連接後端，請確認 FastAPI 伺服器已啟動（uvicorn app.main:app --reload）")
-
+            except requests.exceptions.Timeout:
+                st.error("請求逾時，請稍後再試")
 
 # ── 結果顯示區 ────────────────────────────────────────────
 # 只要 session_state 有資料，不管有沒有按按鈕，都會顯示

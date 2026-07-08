@@ -190,4 +190,4 @@ if st.session_state.get("module_d_result"):
                 st.info(channel)
 
     st.markdown("---")
-    st.success("✅ 選定版本後，請前往左側選單的「Sourcing 助手」繼續下一步。")
+    st.success("✅ Persona 生成完成！請前往左側選單的「薪資競爭力分析」或「Sourcing 助手」繼續下一步。")

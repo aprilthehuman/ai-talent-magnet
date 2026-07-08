@@ -128,7 +128,7 @@ if st.button("✨ 產出改寫版本", type="primary", use_container_width=True)
                         "company_profile": company_profile,
                         "target_candidate_focus": target_candidate_focus if target_candidate_focus else None,
                     },
-                    timeout=60
+                    timeout=120
                 )
 
                 if response.status_code == 200:
