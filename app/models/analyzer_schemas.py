@@ -26,8 +26,9 @@ class AnalyzeJDRequest(BaseModel):
     """
     模組 A 的輸入資料結構。
     欄位來源分兩類：
-      - HR 必填：job_title、job_description_text
-      - HR 選填（傳入 AI 層作為分析背景）：company_type、industry、seniority_level
+    - HR 必填：job_title、job_description_text
+    - HR 選填（傳入 AI 層作為分析背景）：company_type、industry、seniority_level
+    - HR 選填（傳入模組 C 作為薪資對比依據）：salary_min、salary_max
     """
     job_title: str = Field(
         ...,
@@ -47,7 +48,15 @@ class AnalyzeJDRequest(BaseModel):
     )
     seniority_level: str | None = Field(
         default=None,
-        description="年資層級，例：junior / mid / senior。傳入 AI 層，影響語氣分析角度"
+        description="年資層級，例：junior / mid / senior。傳入 AI 層，影響語氣分析角度"  
+    )
+    salary_min: int | None = Field(
+        default=None,
+        description="JD 薪資下限（月薪，單位：元），例：45000。選填，有填才納入薪資競爭力分析"
+    )
+    salary_max: int | None = Field(
+        default=None,
+        description="JD 薪資上限（月薪，單位：元），例：70000。選填，有填才納入薪資競爭力分析"
     )
 
 

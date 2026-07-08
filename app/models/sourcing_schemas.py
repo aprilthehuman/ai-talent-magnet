@@ -15,7 +15,6 @@ HR 不需重複填寫任何資訊，只需選填 additional_keywords 與 exclude
 
 
 from pydantic import BaseModel, Field
-from typing import Literal
 from app.models.persona_schemas import EducationPreference
 
 
