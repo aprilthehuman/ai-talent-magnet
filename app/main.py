@@ -6,7 +6,7 @@
 
 
 from fastapi import FastAPI
-from app.routers import analyzer, rewriter, persona, sourcing  # 加入 sourcing
+from app.routers import analyzer, rewriter, persona, sourcing, salary
 
 
 app = FastAPI(
@@ -21,11 +21,15 @@ app.include_router(analyzer.router, prefix="/api/v1", tags=["Module A - JD Analy
 # 模組 B：JD Rewrite AI
 app.include_router(rewriter.router, prefix="/api/v1", tags=["Module B - JD Rewriter"])
 
+# 模組 C：Salary Competitiveness Detector
+app.include_router(salary.router, prefix="/api/v1", tags=["Module C - Salary Detector"])
+
 # 模組 D：Candidate Persona Generator
 app.include_router(persona.router, prefix="/api/v1", tags=["Module D - Persona Generator"])
 
 # 模組 E：AI Sourcing Assistant
 app.include_router(sourcing.router, prefix="/api/v1", tags=["Module E - Sourcing Assistant"])
+
 
 
 @app.get("/")
