@@ -184,6 +184,32 @@ if st.session_state["module_b_result"]:
         st.markdown("### 📌 改寫重點說明")
         for note in result["rewrite_notes"]:
             st.markdown(f"- {note}")
+    
+    # 透明度設計——讓 HR 確認「AI 改寫時確實有套用我填的公司設定」        
+    if result.get("profile_applied"):
+        with st.expander("🔍 本次套用的公司設定"):
+            profile = result["profile_applied"]
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if profile.get("company_name"):
+                    st.markdown(f"**公司名稱**：{profile['company_name']}")
+                if profile.get("vision"):
+                    st.markdown(f"**公司願景**：{profile['vision']}")
+                if profile.get("tone_preference"):
+                    st.markdown(f"**語氣偏好**：{profile['tone_preference']}")
+                if profile.get("manager_style"):
+                    st.markdown(f"**主管風格**：{profile['manager_style']}")
+            with col2:
+                if profile.get("culture_keywords"):
+                    st.markdown(f"**文化關鍵字**：{' / '.join(profile['culture_keywords'])}")
+                if profile.get("must_include"):
+                    st.markdown(f"**必須帶到**：{' / '.join(profile['must_include'])}")
+                if profile.get("must_avoid"):
+                    st.markdown(f"**絕對不出現**：{' / '.join(profile['must_avoid'])}")
+                if profile.get("industry_context"):
+                    st.markdown(f"**產業背景**：{profile['industry_context']}")
+   
 
     st.markdown("---")
     st.success("✅ 選定版本後，請前往左側選單的「候選人 Persona」繼續下一步。")
