@@ -1,3 +1,5 @@
 {
-    "python.defaultInterpreterPath": "C:\\Users\\USER\\miniconda3\\envs\\dev\\python.exe"
+    "python.defaultInterpreterPath": "C:/Users/USER/miniconda3/envs/talent-magnet/python.exe",
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
 }
