@@ -1,7 +1,28 @@
+# 虛擬環境
 .venv/
+
+# 環境變數
 .env
+
+# Python 快取
 __pycache__/
 *.pyc
+*.pyo
+
+# 系統檔
 .DS_Store
+Thumbs.db
+
+# ChromaDB / 向量資料庫
 chroma_db/
+app/vector_store/
+
+# 原始資料
 data_raw/
+
+# LLM 快取
+app/cache/
+
+# 測試用暫時檔
+delete.py
+python_tree.py
