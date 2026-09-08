@@ -2,7 +2,7 @@
 
 > 一個幫企業提升招募吸引力的 AI 系統，從被動等履歷轉為主動提升職缺競爭力。
 
-**作者：** April ｜ **版本：** v1.5.3 ｜ **開發狀態：** Phase 2 進行中（Module A、B、D、E + Streamlit 前端完成 ✅）
+**作者：** April ｜ **版本：** v1.6.0 ｜ **開發狀態：** Phase 3 進行中（Module A、B、D、E、F 完成 ✅）
 
 ---
 
@@ -14,7 +14,7 @@
 
 ---
 
-## 模組架構（v1.5.3，共 7 個模組）
+## 模組架構（v1.6.0，共 7 個模組）
 
 | 模組 | 功能 | 狀態 |
 |------|------|------|
@@ -23,7 +23,7 @@
 | **C** Salary Competitiveness Detector | AI 混合模式評估薪資市場競爭力 | 📋 Phase 2 |
 | **D** Candidate Persona Generator | 反推理想候選人樣貌、動機與溝通方式 | ✅ 已完成 |
 | **E** AI Sourcing Assistant | 生成五種平台 Boolean search string 與通用破冰訊息，降低主動 sourcing 門檻 | ✅ 已完成 |
-| **F** HR Knowledge Copilot | RAG 技術建立招募知識庫，自然語言查詢歷史 JD | 📋 Phase 3 |
+| **F** HR Knowledge Copilot | RAG + Rule-based dispatch，自然語言查詢勞基法、員工資料與假別餘額 | ✅ 已完成 |
 | **G** AI Orchestration Agent | 自然語言一句話觸發完整流程，LangChain Agent 串聯所有模組 | 📋 Phase 3 |
 
 ---
@@ -35,7 +35,7 @@
 後端    FastAPI + Uvicorn
 AI 模型  OpenAI GPT-4o-mini
 框架    LangChain + LangGraph（Module G，Phase 3）
-向量庫  ChromaDB（Module F，Phase 3）
+向量庫  ChromaDB（Module F）
 資料驗證 Pydantic v2
 語言    Python 3.11
 ```
@@ -48,36 +48,52 @@ AI 模型  OpenAI GPT-4o-mini
 portfolio/
 ├── main.py                          # FastAPI 主程式，掛載所有 Router
 ├── .env                             # API Key（不納入版控）
+├── .env.example                     # API Key 範本
 ├── .gitignore
 ├── requirements.txt
+├── scripts/
+│   └── build_vector_store.py        # 建立 ChromaDB 向量資料庫（Module F 初始化用）
 ├── frontend/
 │   ├── app_ui.py                    # Streamlit 首頁
 │   └── pages/
 │       ├── 1_JD分析.py              # Module A 介面
 │       ├── 2_JD改寫.py              # Module B 介面
 │       ├── 3_人才畫像.py            # Module D 介面
-│       └── 4_Sourcing助手.py        # Module E 介面
+│       ├── 4_Sourcing助手.py        # Module E 介面
+│       └── ❻_ HR知識助手.py         # Module F 介面
 └── app/
+    ├── config.py                    # 路徑與向量庫設定（VECTOR_STORE_DIR、COLLECTION_NAME 等）
+    ├── data/
+    │   └── employees/
+    │       ├── employees.csv        # 模擬員工資料
+    │       ├── leave_records.csv    # 模擬請假紀錄
+    │       └── salary_records.csv   # 模擬薪資紀錄
+    ├── knowledge/                   # RAG 知識庫來源文件
+    │   ├── labor_law.md             # 勞基法重點整理
+    │   ├── leave_policy.md          # 請假政策
+    │   └── recruitment_policy.md   # 招募政策
     ├── core/
     │   ├── prompts/
     │   │   └── sourcing_prompts.py  # Module E Prompt templates
     │   └── keyword_dicts.py         # 負面詞彙、模糊用語字典（Module A）+ 職稱同義詞字典（Module E）
-    ├── data/                        # 參考資料集（Module C 薪資對照，Phase 2 使用）
     ├── routers/
     │   ├── analyzer.py              # Module A Router
     │   ├── rewriter.py              # Module B Router
     │   ├── persona.py               # Module D Router
-    │   └── sourcing.py              # Module E Router
+    │   ├── sourcing.py              # Module E Router
+    │   └── copilot.py               # Module F Router（Rule-based dispatch + jieba NER）
     ├── models/
     │   ├── analyzer_schemas.py      # Module A Schemas
     │   ├── rewriter_schemas.py      # Module B Schemas（含 CompanyProfile）
     │   ├── persona_schemas.py       # Module D Schemas（含 EducationPreference）
-    │   └── sourcing_schemas.py      # Module E Schemas
+    │   ├── sourcing_schemas.py      # Module E Schemas
+    │   └── copilot_schemas.py       # Module F Schemas
     └── services/
         ├── analyzer_service.py      # Module A 商業邏輯
         ├── rewriter_service.py      # Module B 商業邏輯
         ├── persona_service.py       # Module D 商業邏輯
-        └── sourcing_service.py      # Module E 商業邏輯
+        ├── sourcing_service.py      # Module E 商業邏輯
+        └── copilot_service.py       # Module F 三個 LangChain Tool（RAG / 員工查詢 / 假別計算）
 ```
 
 ---
@@ -106,6 +122,9 @@ pip install -r requirements.txt
 # 4. 設定 API Key
 cp .env.example .env
 # 在 .env 填入你的 OPENAI_API_KEY
+
+# 5. 初始化 Module F 知識庫（首次執行需要）
+python scripts/build_vector_store.py
 ```
 
 ### 啟動後端
@@ -277,6 +296,41 @@ streamlit run frontend/app_ui.py
 
 ---
 
+## Module F — HR Knowledge Copilot
+
+**功能：** 自然語言查詢 HR 知識庫，支援勞基法規定、公司政策、員工基本資料與假別餘額三種查詢情境。
+
+**API：** `POST /api/v1/copilot/query`
+
+**請求範例：**
+```json
+{ "question": "王大明還有幾天特休？" }
+```
+
+**回應欄位：**
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `answer` | string | AI 回答（結論 + 參考資料卡） |
+| `tool_used` | string | `rag_search` / `lookup_employee` / `calculate_leave` |
+
+**三個 LangChain Tool：**
+
+| Tool | 觸發條件 | 說明 |
+|------|----------|------|
+| `rag_search` | 勞基法、請假流程、公司政策等問題 | 查詢 ChromaDB 向量資料庫，LLM 合成結論 |
+| `lookup_employee` | 含員工姓名或工號 + 員工相關關鍵字 | 查詢 employees.csv，回傳部門、薪資、到職日等 |
+| `calculate_leave` | 含員工姓名或工號 + 假別相關關鍵字 | 查詢 leave_records.csv，依勞基法第 38 條計算特休餘額 |
+
+**dispatch 設計：** Rule-based dispatch（不呼叫 LLM 做意圖判斷），搭配 jieba 中文斷詞萃取人名（Layer 1）與 regex lookahead fallback（Layer 2），兼顧效能與準確率。未來升級為 LangGraph Agent 時，Router 介面不變。
+
+**初始化知識庫：**
+```bash
+python scripts/build_vector_store.py
+```
+
+---
+
 ## 開發說明
 
 ### 技術決策亮點
@@ -289,13 +343,15 @@ streamlit run frontend/app_ui.py
 - **Prompt 層分離** — Module E 的 prompt 獨立於 `sourcing_prompts.py`，service 層只負責組裝與呼叫
 - **職稱同義詞字典雙層查詢** — 正向字典 + 自動產生的反向索引，查無結果時 fallback 至 LLM 即時展開
 - **同步函式統一** — 所有 router endpoint 使用 `def`（非 `async def`），service 層無 `await`，避免阻塞事件迴圈
+- **RAG 相關性門檻過濾** — Module F 使用 `similarity_search_with_relevance_scores()`，低於 0.5 的文件不顯示於參考資料，避免雜訊干擾
+- **中文 NER 雙層策略** — jieba 詞性標注（nr/nz）為主，regex lookahead 為 fallback，解決繁體中文姓名辨識不穩定問題
 
 ### 開發階段規劃
 
 ```
 Phase 1（✅ 完成）：Module A、B、D + Streamlit 前端
-Phase 2（進行中）：Module E（✅ 已完成）、Module C（薪資競爭力，待開發）
-Phase 3：Module F（RAG 知識庫）、Module G（AI Agent 串聯）
+Phase 2（✅ 完成）：Module E
+Phase 3（進行中）：Module F（✅ 已完成）、Module G（AI Agent 串聯，待開發）
 Phase 4：部署（Docker + Railway）
 ```
 
@@ -303,13 +359,13 @@ Phase 4：部署（Docker + Railway）
 
 ## 資料誠信聲明
 
-本專案在所有涉及資料輸出的地方，都標註 confidence level 並提供 disclaimer，不假裝擁有完整資料集。Module C 的薪資參考資料為手動整理的 demo 資料集，來源透明（104 薪資情報公開頁、比薪水平台），不使用爬蟲。
+本專案在所有涉及資料輸出的地方，都標註 confidence level 並提供 disclaimer，不假裝擁有完整資料集。Module C 的薪資參考資料為手動整理的 demo 資料集，來源透明（104 薪資情報公開頁、比薪水平台），不使用爬蟲。Module F 使用的員工資料（employees.csv、leave_records.csv）為模擬資料，不含真實個資。
 
 ---
 
 ## 相關連結
 
-- 📄 [企劃書 v1.5.3]（附於 repo 中）
+- 📄 [企劃書 v1.6.0]（附於 repo 中）
 - 🔗 API 文件：啟動後端後至 `http://localhost:8000/docs` 查看
 
 ---
