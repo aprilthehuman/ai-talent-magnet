@@ -4,6 +4,7 @@
 所有 service、scripts 均從此 import，避免分散定義造成不一致。
 """
 
+import os
 from pathlib import Path
 
 # ── 專案根目錄 ───────────────────────────────────────────────────
@@ -23,3 +24,10 @@ CHUNK_OVERLAP = 50
 
 # ── Embedding 模型 ────────────────────────────────────────────────
 EMBEDDING_MODEL = "text-embedding-3-small"
+
+# ── LangSmith 追蹤設定（Module G）────────────────────────────────
+# 需在 .env 設定，LangGraph 執行時自動送出追蹤紀錄
+# LANGCHAIN_TRACING_V2=true 時啟用，false 時關閉（本地除錯用）
+LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false")
+LANGCHAIN_API_KEY    = os.getenv("LANGCHAIN_API_KEY", "")
+LANGCHAIN_PROJECT    = os.getenv("LANGCHAIN_PROJECT", "ai-talent-magnet")

@@ -7,6 +7,7 @@
 
 from fastapi import FastAPI
 from app.routers import analyzer, rewriter, persona, sourcing, salary, copilot
+from app.routers.agent import router as agent_router
 
 
 app = FastAPI(
@@ -32,6 +33,9 @@ app.include_router(sourcing.router, prefix="/api/v1", tags=["Module E - Sourcing
 
 # 模組 F：HR 知識助手
 app.include_router(copilot.router, prefix="/api/v1", tags=["Module F - HR Copilot"])
+
+# 模組 G：AI Orchestration Agent
+app.include_router(agent_router, prefix="/api/v1", tags=["Module G - AI Orchestration Agent"])
 
 
 @app.get("/")

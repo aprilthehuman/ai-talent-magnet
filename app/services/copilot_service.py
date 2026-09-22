@@ -20,9 +20,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from langchain_core.tools import tool
 from langchain_chroma import Chroma
-from langchain_community.cache import SQLiteCache
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_core.globals import set_llm_cache
 
 # 4. 本地模組
 from app.config import (
@@ -35,11 +33,6 @@ from app.config import (
 # 5. 執行邏輯
 load_dotenv()
 
-# ── LLM Cache（節省重複查詢的 API 費用）──────────────────────────
-_cache_path = Path(__file__).resolve().parent.parent.parent / "app" / "cache"
-_cache_path.mkdir(parents=True, exist_ok=True)
-set_llm_cache(SQLiteCache(database_path=str(_cache_path / "llm_cache.db")))
-
 # ── ChromaDB 初始化（模組載入時執行一次，避免重複開啟）────────────
 _embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
 _llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
@@ -49,11 +42,10 @@ _vectorstore = Chroma(
     persist_directory=str(VECTOR_STORE_DIR),
 )
 # 相關性門檻：低於此分數的文件視為「無關」，不顯示在參考資料區塊
-# 分數範圍 0–1（越高越相關），0.5 是保守值，可視需求調整
 _RAG_RELEVANCE_THRESHOLD = 0.5
 
 # ── CSV 路徑 ──────────────────────────────────────────────────────
-_EMPLOYEES_CSV    = DATA_DIR / "employees.csv"
+_EMPLOYEES_CSV     = DATA_DIR / "employees.csv"
 _LEAVE_RECORDS_CSV = DATA_DIR / "leave_records.csv"
 
 
@@ -94,20 +86,15 @@ def rag_search(query: str) -> str:
     Returns:
         相關知識庫段落，格式為「來源 + 內容」的清單。
     """
-    # ── 用相關性分數搜尋（0–1，越高越相關）────────────────────────
     scored_docs = _vectorstore.similarity_search_with_relevance_scores(query, k=3)
 
     if not scored_docs:
         return "知識庫中未找到相關資料，請洽 HR 部門確認。"
 
-    # ── 過濾低相關文件 ────────────────────────────────────────────
     relevant_docs = [(doc, score) for doc, score in scored_docs
                      if score >= _RAG_RELEVANCE_THRESHOLD]
 
-    # ── 組裝給 LLM 的 context（不管是否有相關文件都合成結論）──────
     context_for_llm = []
-    ref_blocks = []
-
     for i, (doc, score) in enumerate(scored_docs, start=1):
         content = doc.page_content.strip()
         context_for_llm.append(f"[{i}] {content}")
@@ -123,10 +110,10 @@ def rag_search(query: str) -> str:
     )
     conclusion = _llm.invoke(prompt).content.strip()
 
-    # ── 僅在有相關文件時才附參考資料卡 ──────────────────────────
     if not relevant_docs:
         return conclusion
 
+    ref_blocks = []
     for i, (doc, score) in enumerate(relevant_docs, start=1):
         source  = doc.metadata.get("file", "未知來源")
         section = doc.metadata.get("h2", "")
@@ -157,7 +144,6 @@ def lookup_employee(identifier: str) -> str:
     """
     df = pd.read_csv(_EMPLOYEES_CSV, dtype={"employee_id": str})
 
-    # 先嘗試用 employee_id 查詢，再嘗試用 name 查詢
     mask = (df["employee_id"] == identifier) | (df["name"] == identifier)
     result = df[mask]
 
@@ -181,8 +167,6 @@ def lookup_employee(identifier: str) -> str:
 # Tool 3：假別餘額計算
 # ════════════════════════════════════════════════════════════════
 
-# 年度額度假別：有固定上限，可計算剩餘天數
-# 特休依年資動態計算，其餘固定額度來自 leave_policy.md
 _ANNUAL_LEAVE_QUOTA = {
     "特休": None,   # 動態計算，見 _entitled_leave_days()
     "事假": 14,
@@ -190,7 +174,6 @@ _ANNUAL_LEAVE_QUOTA = {
     "生理假": 3,
 }
 
-# 事件型假別：屬一次性事件，無年度剩餘概念，僅顯示本年度已使用天數
 _EVENT_LEAVE_TYPES = ["婚假", "喪假", "產假", "陪產假", "育嬰假", "補休", "公假"]
 
 
@@ -198,8 +181,6 @@ _EVENT_LEAVE_TYPES = ["婚假", "喪假", "產假", "陪產假", "育嬰假", "�
 def calculate_leave(identifier: str) -> str:
     """
     計算員工本年度各假別使用情況與剩餘天數。
-    年度額度假別（特休、事假、病假、生理假）顯示應給/已使用/剩餘天數；
-    事件型假別（婚假、喪假、產假等）顯示本年度已使用天數。
 
     Args:
         identifier: 員工姓名（如「王大明」）或員工編號（如「10001」）
@@ -207,11 +188,9 @@ def calculate_leave(identifier: str) -> str:
     Returns:
         各假別使用情況的完整清單。
     """
-    # 載入資料
     emp_df   = pd.read_csv(_EMPLOYEES_CSV, dtype={"employee_id": str})
     leave_df = pd.read_csv(_LEAVE_RECORDS_CSV, dtype={"employee_id": str})
 
-    # 查詢員工
     mask   = (emp_df["employee_id"] == identifier) | (emp_df["name"] == identifier)
     result = emp_df[mask]
 
@@ -226,7 +205,6 @@ def calculate_leave(identifier: str) -> str:
     current_year = today.year
     years_of_service = (today - hire_date).days / 365.25
 
-    # 取得本年度已核准的請假紀錄，依假別加總天數
     approved_df = leave_df[
         (leave_df["employee_id"] == employee_id) &
         (leave_df["status"] == "approved") &
@@ -234,7 +212,6 @@ def calculate_leave(identifier: str) -> str:
     ]
     used_by_type = approved_df.groupby("leave_type")["days"].sum().to_dict()
 
-    # ── 組裝輸出 ──────────────────────────────────────────────
     lines = [
         f"員工：{name}（{employee_id}）",
         f"到職日：{hire_date}｜年資：{years_of_service:.1f} 年",
@@ -246,12 +223,10 @@ def calculate_leave(identifier: str) -> str:
     gender = str(row.get("gender", "M")).strip().upper()
 
     for leave_type, quota in _ANNUAL_LEAVE_QUOTA.items():
-        # 生理假僅適用女性員工
         if leave_type == "生理假" and gender != "F":
             continue
-        # 特休依年資動態計算應給天數
-        entitled = _entitled_leave_days(hire_date, today) if quota is None else quota
-        used     = int(used_by_type.get(leave_type, 0))
+        entitled  = _entitled_leave_days(hire_date, today) if quota is None else quota
+        used      = int(used_by_type.get(leave_type, 0))
         remaining = entitled - used
         lines.append(f"  {leave_type}")
         lines.append(f"    應給 {entitled} 天 / 已使用 {used} 天 / 剩餘 {remaining} 天")
