@@ -35,9 +35,7 @@ st.text_area(
     label_visibility="collapsed"
 )
 
-if not st.session_state.get("company_profile"):
-    st.warning("⚠️ 尚未填寫 Company Profile，請先完成「JD 改寫」。")
-    ready = False
+# v1.7：company_profile 已改為選填，None 是合法值，移除阻擋 guard
 
 st.markdown("---")
 
@@ -83,7 +81,7 @@ if st.button(
                     "industry": st.session_state.get("industry"),
                     "seniority_level": st.session_state.get("seniority_level"),
                     "job_description_text": st.session_state["selected_jd"],
-                    "company_profile": st.session_state["company_profile"],
+                    "company_profile": st.session_state.get("company_profile"),  # v1.7：None 合法，後端 fallback
                     "target_candidate_focus": st.session_state.get("target_candidate_focus"),
                     "education_preference": education_preference,  # ← 新增
                 },

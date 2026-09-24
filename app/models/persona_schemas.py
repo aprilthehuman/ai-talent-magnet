@@ -7,6 +7,9 @@
 新增：
   - EducationPreference：HR 填寫的學歷參考條件，影響 Persona 描述與下游 Sourcing 策略
   - education_preference 原樣帶出至 GeneratePersonaResponse，讓模組 E 直接接收
+v1.7：
+  - company_profile 改為選填（None = 使用者未填任何公司資訊）
+    service 層以 CompanyProfile() 空物件作 fallback，LLM 用通用語氣生成 Persona
 """
 
 
@@ -49,7 +52,9 @@ class GeneratePersonaRequest(BaseModel):
 
     # 從模組 B 帶入
     job_description_text: str = Field(..., description="模組 B 選定的改寫版本")
-    company_profile: CompanyProfile = Field(..., description="直接沿用模組 B 的 CompanyProfile schema")
+    # v1.7：company_profile 改為選填（None = 使用者未填任何公司資訊）
+    # service 層以 CompanyProfile() 空物件作 fallback，LLM 用通用語氣生成 Persona
+    company_profile: CompanyProfile | None = Field(default=None, description="直接沿用模組 B 的 CompanyProfile schema；v1.7 改為選填")
     target_candidate_focus: str | None = Field(default=None, description="直接沿用模組 B 填寫的內容")
 
     # HR 選填補充

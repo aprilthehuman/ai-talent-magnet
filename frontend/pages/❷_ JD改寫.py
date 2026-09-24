@@ -4,9 +4,14 @@ Module B：JD Rewrite AI
 """
 
 
+import os
+
 import streamlit as st
 import requests
 import re
+
+# 後端 API 位址：本地開發預設 localhost:8000，部署到 Railway 時由環境變數 API_BASE_URL 覆蓋
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 
 # ── 強制流程順序：必須先完成 Module A 才能進入此頁 ────────
@@ -35,30 +40,30 @@ original_jd = st.text_area(
 st.markdown("---")
 
 # ── Company Profile 輸入區 ────────────────────────────────
-st.markdown("### 🏢 Company Profile")
-st.markdown("告訴 AI 你的公司是什麼樣的，改寫結果才會有公司個性。")
+st.markdown("### 🏢 Company Profile（選填）")
+st.markdown("告訴 AI 你的公司是什麼樣的，改寫結果才會有公司個性。若不填，AI 會以通用風格改寫。")
 
 col1, col2 = st.columns(2)
 with col1:
     company_name = st.text_input(
-        "公司名稱 *",
+        "公司名稱",
         placeholder="例：Acme SaaS"
     )
 with col2:
     vision = st.text_input(
-        "公司願景 *",
+        "公司願景",
         placeholder="例：打造亞洲最好的 B2B SaaS 平台"
     )
 
 # 說明文字明確列出支援的分隔符號
 culture_keywords_input = st.text_input(
-    "企業文化關鍵字 *（可用逗號、頓號、空白、分號、斜線分隔）",
+    "企業文化關鍵字（可用逗號、頓號、空白、分號、斜線分隔）",
     placeholder="例：透明、扁平、快速迭代"
 )
 
 st.markdown("---")
 
-with st.expander("⚙️ 進階設定（選填）"):
+with st.expander("⚙️ 進階設定"):
     col1, col2 = st.columns(2)
     with col1:
         manager_style = st.text_input(
@@ -85,7 +90,7 @@ with st.expander("⚙️ 進階設定（選填）"):
     )
 
 target_candidate_focus = st.text_input(
-    "想吸引的候選人特質（選填）",
+    "想吸引的候選人特質",
     placeholder="例：喜歡挑戰、重視技術成長的工程師"
 )
 
@@ -96,8 +101,6 @@ if st.button("✨ 產出改寫版本", type="primary", use_container_width=True)
 
     if not original_jd:
         st.warning("請提供原始 JD")
-    elif not company_name or not vision or not culture_keywords_input:
-        st.warning("請填寫公司名稱、公司願景、企業文化關鍵字")
     else:
         # 統一的分隔符號規則：逗號、中文逗號、頓號、分號、中文分號、斜線、空白
         # 套用在所有需要切割的欄位上
@@ -107,22 +110,26 @@ if st.button("✨ 產出改寫版本", type="primary", use_container_width=True)
         must_include = [k.strip() for k in re.split(split_pattern, must_include_input) if k.strip()] if must_include_input else []
         must_avoid = [k.strip() for k in re.split(split_pattern, must_avoid_input) if k.strip()] if must_avoid_input else []
 
+        # company_profile 為選填：只要有任何一個欄位有值就組成 dict，否則傳 None
+        has_profile = any([company_name, vision, culture_keywords,
+                           manager_style, tone_preference, must_include,
+                           must_avoid, industry_context])
         company_profile = {
-            "company_name": company_name,
+            "company_name": company_name if company_name else None,
             "culture_keywords": culture_keywords,
-            "vision": vision,
+            "vision": vision if vision else None,
             "manager_style": manager_style if manager_style else None,
             "tone_preference": tone_preference if tone_preference else None,
-            "must_include": must_include,   # 空 list [] 就傳 []，不轉成 None
-            "must_avoid": must_avoid,      # 空 list [] 就傳 []，不轉成 None
+            "must_include": must_include,
+            "must_avoid": must_avoid,
             "industry_context": industry_context if industry_context else None,
-        }
+        } if has_profile else None
         st.session_state["company_profile"] = company_profile
 
         with st.spinner("AI 改寫中，請稍候..."):
             try:
                 response = requests.post(
-                    "http://localhost:8000/api/v1/rewrite-jd",
+                    f"{API_BASE_URL}/api/v1/rewrite-jd",
                     json={
                         "original_jd": original_jd,
                         "company_profile": company_profile,
@@ -184,12 +191,12 @@ if st.session_state["module_b_result"]:
         st.markdown("### 📌 改寫重點說明")
         for note in result["rewrite_notes"]:
             st.markdown(f"- {note}")
-    
-    # 透明度設計——讓 HR 確認「AI 改寫時確實有套用我填的公司設定」        
+
+    # 透明度設計——讓 HR 確認「AI 改寫時確實有套用我填的公司設定」
     if result.get("profile_applied"):
         with st.expander("🔍 本次套用的公司設定"):
             profile = result["profile_applied"]
-            
+
             col1, col2 = st.columns(2)
             with col1:
                 if profile.get("company_name"):
@@ -209,7 +216,7 @@ if st.session_state["module_b_result"]:
                     st.markdown(f"**絕對不出現**：{' / '.join(profile['must_avoid'])}")
                 if profile.get("industry_context"):
                     st.markdown(f"**產業背景**：{profile['industry_context']}")
-   
+
 
     st.markdown("---")
     st.success("✅ 選定版本後，請前往左側選單的「候選人 Persona」繼續下一步。")

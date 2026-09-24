@@ -10,6 +10,14 @@
 Guardrail 設計：
   - must_avoid：後處理掃描，違規時在輸出文末附上警告，提示 HR 手動修改
   - must_include：注入 prompt，由 LLM 負責自然融入改寫結果
+
+v1.7 變更：
+  - build_prompt() 對 company_name、vision、culture_keywords 加入 fallback
+    因為 CompanyProfile 這三個欄位已改為選填（None / 空 list 均合法）
+    使用「（未提供）」fallback 讓 LLM 以通用語氣改寫，避免 prompt 裡出現 "None"
+  - rewrite_jd() 加入 profile fallback：
+    company_profile 為 None 時以空的 CompanyProfile() 取代，
+    確保後續 build_prompt() / check_must_avoid() 不因 None 報錯
 """
 
 
@@ -17,7 +25,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from openai import OpenAI
 from dotenv import load_dotenv
-from app.models.rewriter_schemas import RewriteJDRequest, RewriteJDResponse
+from app.models.rewriter_schemas import RewriteJDRequest, RewriteJDResponse, CompanyProfile
 
 
 load_dotenv()
@@ -28,6 +36,9 @@ def build_prompt(original_jd: str, profile, style: str, target_candidate_focus: 
     """
     組裝單一風格的 prompt
     style: "startup" / "stable_enterprise" / "high_growth"
+
+    v1.7：company_name、vision、culture_keywords 可能為 None / 空 list，
+    各加 fallback 字串，避免 prompt 出現 "None" 影響 LLM 輸出品質。
     """
 
     style_instructions = {
@@ -36,8 +47,11 @@ def build_prompt(original_jd: str, profile, style: str, target_candidate_focus: 
         "high_growth": "改寫成「高成長挑戰型」：強調學習、挑戰、技術深度、快速升級，語氣充滿野心、啟發性、重視成長"
     }
 
-    # 將 list 欄位轉成中文頓號串接的字串，方便帶入 prompt
-    culture_str = "、".join(profile.culture_keywords)
+    # v1.7：選填欄位加 fallback，None / 空 list 一律顯示「（未提供）」
+    company_name_str = profile.company_name or "（未提供）"
+    culture_str = "、".join(profile.culture_keywords) if profile.culture_keywords else "（未提供）"
+    vision_str = profile.vision or "（未提供）"
+
     must_include_str = "、".join(profile.must_include) if profile.must_include else "（無）"
     must_avoid_str = "、".join(profile.must_avoid) if profile.must_avoid else "（無）"
     target_str = f"想吸引的候選人特質：{target_candidate_focus}\n" if target_candidate_focus else ""
@@ -45,9 +59,9 @@ def build_prompt(original_jd: str, profile, style: str, target_candidate_focus: 
     prompt = f"""你是一位熟悉台灣招募市場的 HR 顧問。
 
 【公司背景】
-公司名稱：{profile.company_name}
+公司名稱：{company_name_str}
 企業文化關鍵字：{culture_str}
-公司願景：{profile.vision}
+公司願景：{vision_str}
 主管風格：{profile.manager_style or "（未提供）"}
 語氣偏好：{profile.tone_preference or "（未提供）"}
 產業背景：{profile.industry_context or "（未提供）"}
@@ -83,8 +97,13 @@ def rewrite_jd(request: RewriteJDRequest) -> RewriteJDResponse:
     模組 B 主函式：三種風格平行呼叫 OpenAI，套用 Guardrail 後回傳。
     使用 ThreadPoolExecutor 將三次 API 呼叫同時送出，
     總等待時間從「三次加總」降為「最慢那次」，約快 2–3 倍。
+
+    v1.7：company_profile 為 None 時以空的 CompanyProfile() 取代，
+    後續 build_prompt() 的 fallback 會以「（未提供）」填入各欄位。
     """
-    profile = request.company_profile
+    # v1.7 fallback：使用者未填任何 Company Profile 時用空物件取代 None
+    profile = request.company_profile or CompanyProfile()
+
     styles = ["startup", "stable_enterprise", "high_growth"]
     results = {}
 

@@ -5,8 +5,13 @@ HR 只需選填 additional_keywords 與 exclude_keywords
 輸出：職稱同義展開、Boolean search string（五種語法）、Outreach 訊息、Sourcing Tips
 """
 
+import os
+
 import streamlit as st
 import requests
+
+# 後端 API 位址：本地開發預設 localhost:8000，部署到 Railway 時由環境變數 API_BASE_URL 覆蓋
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 
 # ── 強制流程順序 ──────────────────────────────────────────
@@ -76,7 +81,7 @@ if st.button("🚀 生成 Sourcing 內容", type="primary", use_container_width=
     with st.spinner("AI 生成 Sourcing 內容中，請稍候..."):
         try:
             response = requests.post(
-                "http://localhost:8000/api/v1/generate-sourcing",
+                f"{API_BASE_URL}/api/v1/generate-sourcing",
                 json={
                     "job_title": job_title,
                     "key_skills": persona.get("key_skills", []),

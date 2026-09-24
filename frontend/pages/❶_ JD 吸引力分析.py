@@ -4,8 +4,13 @@ Module A：JD Attraction Analyzer
 """
 
 
+import os
+
 import streamlit as st
 import requests   # 用來呼叫我們的 FastAPI 後端
+
+# 後端 API 位址：本地開發預設 localhost:8000，部署到 Railway 時由環境變數 API_BASE_URL 覆蓋
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 
 # ── 頁面標題 ──────────────────────────────────────────────
@@ -19,12 +24,12 @@ st.markdown("---")
 # value= 設定預設值，這裡從 session_state 讀取，
 # 這樣使用者在其他頁面輸入過的 JD 會自動帶入，不用重複貼
 job_title = st.text_input(
-    label="職稱 *",
+    label="職稱",
     placeholder="例：Python Backend Engineer"
 )
 
 job_description = st.text_area(
-    label="職缺描述（JD） *",
+    label="職缺描述（JD）",
     placeholder="把完整的 JD 文字貼在這裡...",
     height=300,
     value=st.session_state["original_jd"]   # 從 session_state 讀取上次的值
@@ -98,7 +103,7 @@ if st.button("🔍 開始分析", type="primary", use_container_width=True):
                 # 呼叫 FastAPI 後端
                 # 注意：FastAPI 要先在另一個 terminal 執行才能呼叫
                 response = requests.post(
-                    "http://localhost:8000/api/v1/analyze-jd",
+                    f"{API_BASE_URL}/api/v1/analyze-jd",
                     json={
                         "job_title": job_title,
                         "job_description_text": job_description,

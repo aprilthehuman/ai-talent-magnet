@@ -15,6 +15,7 @@ from app.models.persona_schemas import (
     GeneratePersonaResponse,
     CandidatePersona
 )
+from app.models.rewriter_schemas import CompanyProfile
 
 
 load_dotenv()
@@ -22,6 +23,9 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 def generate_persona(request: GeneratePersonaRequest) -> GeneratePersonaResponse:
+
+    # v1.7 fallback：使用者未填任何 Company Profile 時用空物件取代 None
+    profile = request.company_profile or CompanyProfile()
 
     # 組裝模組 A 的背景欄位
     context_parts = []
@@ -43,7 +47,6 @@ def generate_persona(request: GeneratePersonaRequest) -> GeneratePersonaResponse
         edu_str = "學歷參考條件：不限"
 
     # 組裝模組 B 的 Company Profile
-    profile = request.company_profile
     culture_str = "、".join(profile.culture_keywords)
     must_include_str = "、".join(profile.must_include) if profile.must_include else "（無）"
     must_avoid_str = "、".join(profile.must_avoid) if profile.must_avoid else "（無）"

@@ -116,4 +116,4 @@ with col5:
     st.metric(label="Module E：Sourcing 助手", value=status_e)
 
 st.markdown("---")
-st.caption("版本 v1.5.3 ‧ 作者：April")
+st.caption("版本 v1.7.0 ‧ 作者：April")

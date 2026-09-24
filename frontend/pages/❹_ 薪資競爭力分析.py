@@ -5,8 +5,13 @@ Module C：Salary Competitiveness Detector
 HR 不需額外填寫任何欄位，直接送出即可取得薪資競爭力分析。
 """
 
+import os
+
 import streamlit as st
 import requests
+
+# 後端 API 位址：本地開發預設 localhost:8000，部署到 Railway 時由環境變數 API_BASE_URL 覆蓋
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 
 # ── 強制流程順序 ──────────────────────────────────────────
@@ -72,7 +77,7 @@ if st.button("🔍 分析薪資競爭力", type="primary", use_container_width=T
     with st.spinner("AI 分析薪資競爭力中，請稍候..."):
         try:
             response = requests.post(
-                "http://localhost:8000/api/v1/check-salary",
+                f"{API_BASE_URL}/api/v1/check-salary",
                 json={
                     "job_title": job_title,
                     "company_type": company_type,

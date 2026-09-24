@@ -6,6 +6,11 @@
   2. extract_jd_salary()      ：規則層，從 JD 文字解析是否已提供薪資範圍
   3. build_salary_context()   ：查詢層，從 CSV 撈出對應參考數字，組成給 LLM 的背景資料
   4. check_salary()           ：主函式，整合以上，呼叫 LLM 推估薪資競爭力
+
+v1.7 變更：
+  - 競爭力判斷加入硬性規則，要求 LLM 嚴格依據 offered 薪資落在 P25/P50/P75
+    的哪個區間來決定 competitiveness_level，避免主觀因素（如「外商應該更高」）
+    導致評級與市場數字矛盾的問題。
 """
 
 import os
@@ -71,10 +76,6 @@ def extract_jd_salary(jd_text: str) -> str | None:
       - 薪資面議、待遇面議、薪資再議等（面議類）
     """
     # 薪資面議：有提及但未揭露數字
-    # 涵蓋常見台灣 JD 寫法：
-    #   薪資面議、薪資可面議、薪資另外面議、薪資再議
-    #   待遇面議、待遇優渥面議
-    #   面議（單獨出現）
     if re.search(r"(薪資|待遇).{0,5}(面議|再議|另議)", jd_text) or \
        re.search(r"^面議$", jd_text.strip()):
         return "薪資面議（未揭露具體數字）"
@@ -116,10 +117,6 @@ def build_salary_context(
       - 勞動部職類別：列出所有職類名稱供 LLM 參考，由 LLM 自行映射最接近的職類
       - 主計總處學歷別：若有 industry + education_level，查對應中位數；否則用全體
       - 主計總處規模別：若有 industry + company_type，查對應中位數；否則用全體
-
-    為什麼不在 Python 層做職類映射：
-      職稱對應官方職類需要語意理解（例："Growth Hacker" → 廣告及行銷專業人員），
-      這是 LLM 擅長的工作，Python 字串比對無法處理這類模糊映射。
     """
     lines = []
 
@@ -134,23 +131,20 @@ def build_salary_context(
     # ── 主計總處學歷別：查詢對應產業 × 學歷 ──────────────
     lines.append("\n【主計總處學歷別薪資｜113年｜中位數｜工業及服務業整體】")
 
-    # 學歷對應：Module D 的 EducationLevel → 主計總處的學歷分類
     edu_mapping = {
         "大學": "專科及大學",
         "碩士": "研究所",
-        "博士": "研究所",  # 博士歸入研究所（主計總處無博士單獨分類）
+        "博士": "研究所",
         "不限": "不限",
     }
     edu_key = edu_mapping.get(education_level, "不限") if education_level else "不限"
 
-    # 先嘗試查對應產業，找不到就用全體
     edu_industry = industry if industry else "全體"
     edu_row = df_education[
         (df_education["industry"] == edu_industry) &
         (df_education["education"] == edu_key)
     ]
     if edu_row.empty and edu_industry != "全體":
-        # 找不到對應產業，fallback 到全體
         edu_industry = "全體"
         edu_row = df_education[
             (df_education["industry"] == "全體") &
@@ -176,7 +170,6 @@ def build_salary_context(
             (df_company_size["company_size"] == size_key)
         ]
         if size_row.empty and size_industry != "全體":
-            # 找不到對應產業，fallback 到全體
             size_industry = "全體"
             size_row = df_company_size[
                 (df_company_size["industry"] == "全體") &
@@ -231,16 +224,45 @@ def check_salary(request: SalaryCheckRequest) -> SalaryCheckResponse:
 
     # 步驟三：組 prompt 並呼叫 LLM
     # 優先用 HR 直接填寫的薪資欄位，其次用 JD 文字解析結果
-
     if request.salary_min and request.salary_max:
         jd_salary_str = f"JD 薪資範圍（HR 填寫）：{request.salary_min:,}–{request.salary_max:,} 元／月"
+        offered_salary = (request.salary_min + request.salary_max) // 2
     elif request.salary_min:
-        jd_salary_str = f"JD 薪資下限（HR 填寫）：{request.salary_min:,} 元／月"
+        jd_salary_str = f"JD 薪資（HR 填寫）：{request.salary_min:,} 元／月"
+        offered_salary = request.salary_min
     elif jd_salary:
         jd_salary_str = f"JD 揭露薪資（從 JD 文字解析）：{jd_salary}"
+        offered_salary = None
     else:
         jd_salary_str = "JD 未揭露薪資範圍"
+        offered_salary = None
 
+    # 競爭力等級判斷規則（硬性，帶入 prompt 供 LLM 遵守）
+    # v1.7：加入明確的區間對應，避免 LLM 用主觀因素覆蓋數字判斷
+    competitiveness_rule = ""
+    if offered_salary:
+        competitiveness_rule = f"""
+【競爭力等級判斷規則（必須嚴格遵守）】
+offered_salary（HR 提供薪資）= {offered_salary:,} 元
+
+你必須先推估出 p25_monthly、median_monthly、p75_monthly 三個數字，
+然後嚴格按照以下規則決定 competitiveness_level，不得以外商、產業特性等主觀因素覆蓋：
+
+  offered ≥ p75_monthly          → 「高度競爭」或「具競爭力」
+  median_monthly ≤ offered < p75  → 「具競爭力」或「普通」
+  p25_monthly ≤ offered < median  → 「普通」或「偏低」
+  offered < p25_monthly           → 「明顯偏低」
+
+competitiveness_reason 中需明確說明 offered 落在哪個區間，
+並標明你使用的 p25/median/p75 數字，讓評級有數字依據。
+"""
+    else:
+        competitiveness_rule = """
+【競爭力等級判斷規則】
+JD 未揭露薪資，無法直接比較。
+competitiveness_reason 中說明「薪資未揭露」對候選人吸引力的影響，
+並給出建議的市場合理範圍。
+"""
 
     prompt = f"""
 你是一位熟悉台灣就業市場的資深招募顧問，請根據以下資料推估這個職缺的薪資競爭力。
@@ -260,23 +282,22 @@ def check_salary(request: SalaryCheckRequest) -> SalaryCheckResponse:
 1. 從勞動部職類清單中找出與「{request.job_title}」語意最接近的職類，作為月薪基準
 2. 參考主計總處學歷別與規模別數字，判斷修正方向（上調或下調）
 3. 考量年資層級對薪資的影響（junior/mid/senior）
-4. 若 JD 有揭露薪資，與市場區間對比，判斷競爭力等級
-5. 若 JD 未揭露薪資，根據市場數字給出建議區間，並說明「薪資未揭露」本身對吸引力的影響
-
+4. 根據以上三點，推估出 p25_monthly、median_monthly、p75_monthly 三個市場數字
+5. 再依據下方「競爭力等級判斷規則」決定 competitiveness_level
+{competitiveness_rule}
 【注意事項】
 - 兩個資料來源統計方式不同：勞動部為平均數，主計總處為中位數，請在推估時留意
 - 若職稱無法精確對應官方職類，請說明映射邏輯並調低 confidence_level
 - 若產業無法對應主計總處分類，請使用「全體」數據並說明
-- 若學歷要求為「博士」，參考數字來自主計總處「研究所」分類（含博士），實際薪資通常高於該中位數，請在推估時適度上調
 - disclaimer 必須標註正確資料年份：勞動部職類別薪資調查為 114 年、主計總處薪資統計為 113 年
 
 請用以下 JSON 格式回答，不要加任何其他文字或 markdown 標記：
 {{
-  "p25_monthly": 市場薪資 P25（整數，月薪，單位為新台幣元，例：75000 代表 75,000 元，不要填 75 或 75.0）,
-  "median_monthly": 市場薪資中位數（整數，月薪，單位為新台幣元，例：98000 代表 98,000 元，不要填 98 或 98.0）,
-  "p75_monthly": 市場薪資 P75（整數，月薪，單位為新台幣元，例：120000 代表 120,000 元，不要填 120 或 120.0）,
+  "p25_monthly": 市場薪資 P25（整數，月薪，單位為新台幣元，例：75000 代表 75,000 元）,
+  "median_monthly": 市場薪資中位數（整數，月薪，單位為新台幣元）,
+  "p75_monthly": 市場薪資 P75（整數，月薪，單位為新台幣元）,
   "competitiveness_level": "高度競爭" 或 "具競爭力" 或 "普通" 或 "偏低" 或 "明顯偏低",
-  "competitiveness_reason": "60-100 字的判斷理由",
+  "competitiveness_reason": "60-100 字的判斷理由，需明確引用 offered 薪資與 P25/median/P75 的比較結果",
   "salary_suggestion": "60-100 字的具體薪資建議",
   "data_sources": "本次推估實際引用的資料來源說明",
   "confidence_level": "high" 或 "medium" 或 "low",

@@ -4,8 +4,13 @@ Chat UI — 使用者輸入問題，呼叫 POST /api/v1/copilot/query，
 顯示 AI 回答並標示使用的 Tool。
 """
 
+import os
+
 import streamlit as st
 import requests
+
+# 後端 API 位址：本地開發預設 localhost:8000，部署到 Railway 時由環境變數 API_BASE_URL 覆蓋
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 
 # ── Tool 標籤對應 ──────────────────────────────────────────
@@ -74,7 +79,7 @@ if question:
         with st.spinner("查詢中..."):
             try:
                 response = requests.post(
-                    "http://localhost:8000/api/v1/copilot/query",
+                    f"{API_BASE_URL}/api/v1/copilot/query",
                     json={"question": question},
                     timeout=30,
                 )
