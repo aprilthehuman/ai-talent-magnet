@@ -83,59 +83,75 @@ Orchestration  LangGraph Structured Workflow + Orchestration Tools
 
 ```
 app/
-├── routers/               # HTTP 路由層（Streamlit 呼叫用）
+├── config.py                      # 全域設定（API 金鑰、ChromaDB 路徑、chunk 參數）
+├── main.py                        # FastAPI 主程式，掛載所有 router
+├── core/
+│   ├── keyword_dicts.py           # 職稱同義詞字典、負面詞彙、模糊用語
+│   └── prompts/
+│       └── sourcing_prompts.py    # 模組 E 的 Prompt 模板
+├── models/                        # Pydantic v2 Schema（Request / Response）
+│   ├── analyzer_schemas.py
+│   ├── rewriter_schemas.py
+│   ├── persona_schemas.py
+│   ├── salary_schemas.py
+│   ├── sourcing_schemas.py
+│   ├── copilot_schemas.py
+│   └── agent_schemas.py
+├── routers/                       # HTTP 路由層（Streamlit 呼叫用）
 │   ├── analyzer.py
 │   ├── rewriter.py
 │   ├── persona.py
 │   ├── salary.py
 │   ├── sourcing.py
-│   ├── copilot.py         # 模組 F
-│   └── agent.py           # 模組 G
-├── services/              # 業務邏輯層
+│   ├── copilot.py                 # 模組 F
+│   └── agent.py                   # 模組 G
+├── services/                      # 業務邏輯層
 │   ├── analyzer_service.py
 │   ├── rewriter_service.py
 │   ├── persona_service.py
 │   ├── salary_service.py
 │   ├── sourcing_service.py
-│   └── copilot_service.py
-├── orchestration/         # Orchestration Layer（模組 G）
-│   ├── tools.py           # 適配器層（包裝 Service 函數）
-│   ├── agent_state.py     # AgentState TypedDict
-│   ├── agent_service.py   # LangGraph Structured Workflow
+│   └── copilot_service.py         # RAG / 員工查詢 / 特休計算三個工具
+├── orchestration/                 # Orchestration Layer（模組 G 專用）
+│   ├── agent_state.py             # AgentState TypedDict
+│   ├── agent_service.py           # LangGraph Structured Workflow 主邏輯
+│   ├── tools.py                   # 適配器層（包裝 Service 函數供 Workflow 呼叫）
 │   └── evaluations/
-│       ├── eval_cases.py  # 8 個測試案例
-│       └── run_evals.py   # 評估執行器
-├── models/                # Pydantic v2 Schema
-├── core/
-│   ├── keyword_dicts.py   # 職稱同義詞字典
-│   └── prompts/
-│       └── sourcing_prompts.py
-├── knowledge/             # RAG 知識庫文件
-│   ├── labor_law.md
-│   ├── leave_policy.md
-│   └── recruitment_policy.md
-├── data/                  # 靜態資料
-│   ├── mol_occupation.csv
-│   ├── dgbas_education.csv
-│   ├── dgbas_company_size.csv
-│   └── employees/
-│       ├── employees.csv
-│       ├── leave_records.csv
-│       └── salary_records.csv
-└── vector_store/          # ChromaDB 持久化
+│       ├── eval_cases.py          # 8 個測試案例（涵蓋所有路由路徑）
+│       └── run_evals.py           # 評估執行器
+├── knowledge/                     # 模組 F RAG 知識庫文件
+│   ├── labor_law.md               # 勞基法重點條文
+│   ├── leave_policy.md            # 公司請假制度
+│   └── recruitment_policy.md     # 公司招募制度
+├── data/                          # 靜態資料
+│   ├── mol_occupation.csv         # 勞動部職類別薪資（ETL 輸出）
+│   ├── dgbas_education.csv        # 主計總處表1：產業×學歷薪資（ETL 輸出）
+│   ├── dgbas_company_size.csv     # 主計總處表3：產業×規模薪資（ETL 輸出）
+│   └── employees/                 # 模組 F 員工模擬資料
+│       ├── employees.csv          # 20 筆員工基本資料
+│       ├── leave_records.csv      # 78 筆請假紀錄
+│       └── salary_records.csv     # 160 筆薪資紀錄
+└── vector_store/                  # ChromaDB 持久化儲存（模組 F）
 
-pages/                     # Streamlit 前端
-├── 🏠_首頁.py
-├── ❶_ JD 吸引力分析.py
-├── ❷_ JD改寫.py
-├── ❸_ 候選人 Persona.py
-├── ❹_ 薪資競爭力分析.py
-├── ❺_ Sourcing助手.py
-├── ❻_ HR知識助手.py
-└── ❼_ AI招募助手.py
+frontend/                          # Streamlit 前端
+├── 🏠_首頁.py                     # 首頁與導覽
+└── pages/
+    ├── ❶_ JD 吸引力分析.py        # 模組 A
+    ├── ❷_ JD改寫.py               # 模組 B
+    ├── ❸_ 候選人 Persona.py        # 模組 D
+    ├── ❹_ 薪資競爭力分析.py        # 模組 C
+    ├── ❺_ Sourcing助手.py         # 模組 E
+    ├── ❻_ HR知識助手.py            # 模組 F
+    └── ❼_ AI招募助手.py            # 模組 G
 
 scripts/
-└── prepare_data.py        # 官方薪資資料 ETL 腳本
+├── prepare_data.py                # 官方薪資 Excel → 標準化 CSV（模組 C ETL）
+└── build_vector_store.py          # 知識庫文件向量化並存入 ChromaDB（模組 F）
+
+data_raw/                          # 原始政府統計 Excel（不進版控）
+├── 勞動部職類別薪資調查.xlsx
+├── 表1-各業受僱員工全年總薪資統計－按性別及教育程度分.xlsx
+└── 表3-各業受僱員工全年總薪資統計－按員工規模別分.xlsx
 ```
 
 ---
@@ -201,13 +217,13 @@ scripts/
 
 **輸出**
 
-| 欄位 | 說明 |
-|------|------|
-| `startup_version` | 新創風改寫版本 |
-| `stable_enterprise_version` | 穩定企業風改寫版本 |
-| `high_growth_version` | 高成長挑戰型改寫版本 |
-| `rewrite_notes` | 改寫重點說明 |
-| `profile_applied` | 實際套用的 Profile 摘要 |
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `startup_version` | string | 新創風改寫版本 |
+| `stable_enterprise_version` | string | 穩定企業風改寫版本 |
+| `high_growth_version` | string | 高成長挑戰型改寫版本 |
+| `rewrite_notes` | array | 改寫重點說明（3 條，每個版本一條）|
+| `profile_applied` | object | 實際套用的 Profile 摘要（供驗證用）|
 
 ---
 
@@ -237,7 +253,7 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 
 | 欄位 | 類型 | 說明 |
 |------|------|------|
-| `market_salary_range` | object | P25、median、P75（月薪，元）|
+| `market_salary_range` | object | 市場薪資區間，含 `p25_monthly`、`median_monthly`、`p75_monthly`（月薪，元）|
 | `competitiveness_level` | string | 高度競爭 / 具競爭力 / 普通 / 偏低 / 明顯偏低 |
 | `competitiveness_reason` | string | 60–100 字判斷理由 |
 | `salary_suggestion` | string | 60–100 字具體建議 |
@@ -249,23 +265,21 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 ---
 
 ### 模組 D：Candidate Persona Generator
-
 根據模組 B 選定的改寫 JD 與 Company Profile，反推理想候選人樣貌。
 
 **v1.7 更新：** `company_profile` 改為選填；未提供時 service 層以 `CompanyProfile()` 空物件 fallback，LLM 用通用語氣生成 Persona。
 
-**輸出欄位（結構化 Persona）**
-
-| 欄位 | 說明 |
-|------|------|
-| `ideal_seniority` | 理想年資區間 |
-| `likely_background` | 可能的職涯背景 |
-| `key_skills` | 核心技能清單 |
-| `candidate_motivators` | 在意的面向（成長、薪資、WLB 等）|
-| `likely_concerns` | 可能的顧慮 |
-| `preferred_message_style` | 建議溝通語氣 |
-| `likely_channels` | 常出現的平台 |
-| `education_preference` | HR 填寫的學歷條件（原樣帶出供模組 E 接收）|
+**Output（`GeneratePersonaResponse`）：**
+- `job_title`：職稱（從模組 A 帶入）
+- `persona`（`CandidatePersona`）：
+  - `ideal_seniority`：理想年資區間，例：3–5 年
+  - `likely_background`：可能的職涯背景（`list[str]`）
+  - `key_skills`：核心技能清單（`list[str]`）
+  - `candidate_motivators`：在意的面向，例：技術自主性、WLB（`list[str]`）
+  - `likely_concerns`：可能的顧慮，例：公司穩定性（`list[str]`）
+  - `preferred_message_style`：建議 HR 與此類候選人溝通的語氣風格
+  - `likely_channels`：可能出現的平台，例：LinkedIn、CakeResume（`list[str]`）
+- `education_preference`：原樣帶出 HR 填寫的學歷條件，供模組 E 直接接收（選填）
 
 ---
 
@@ -285,27 +299,27 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 
 **其他輸出**
 
-| 欄位 | 說明 |
-|------|------|
-| `expanded_titles` | 職稱同義展開結果 |
-| `outreach_message_template` | AI 生成破冰聯繫訊息（100 字以內，結尾開放式問句）|
-| `sourcing_tips` | AI 生成 Sourcing 建議 |
+| 欄位 | 型別 | 說明 |
+|------|------|------|
+| `expanded_titles` | `list[str]` | 職稱同義展開結果 |
+| `outreach_message_template` | `str` | AI 生成破冰聯繫訊息（100 字以內，結尾開放式問句）|
+| `sourcing_tips` | `list[str]` | AI 生成 Sourcing 建議 |
 
-**實作亮點：** 雙層職稱查詢機制（正向字典 + 自動反向索引）；字典查無結果時 fallback 到 LLM 即時展開。
+**實作亮點：** 四層職稱展開機制（反向索引 → 正向完整比對 → 部分比對 → LLM 即時 fallback）；字典四層皆查無結果時才呼叫 LLM，兼顧速度與準確率。
 
 ---
 
 ### 模組 F：HR Knowledge Copilot
 
-讓 HR 用自然語言查詢三種問題：勞動法規/公司制度（RAG）、員工個人資料（結構化查詢）、以及跨越兩者的混合問題。
+讓 HR 用自然語言查詢三類問題：勞動法規/公司制度（RAG）、員工個人資料（結構化查詢）、以及假別餘額計算（確定性 Python 計算）。
 
 **dispatch 設計：Rule-based（不呼叫 LLM 做意圖判斷）**
 
 ```
-有員工編號（5位數）＋假別關鍵字  →  calculate_leave
-有假別關鍵字＋jieba 萃取到人名    →  calculate_leave
-有員工關鍵字（員工/職稱/部門/薪資等）→  lookup_employee
-其餘                              →  rag_search
+有員工編號（5位數）＋假別關鍵字 → calculate_leave
+有假別關鍵字＋jieba 萃取到人名 → calculate_leave
+有員工關鍵字（員工/職稱/部門/薪資等）→ lookup_employee
+其餘 → rag_search
 ```
 
 此路由完全由 regex + 關鍵字集合比對完成，不消耗 API 費用，行為確定。
@@ -316,7 +330,7 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 |------|------|----------|
 | `rag_search(query)` | 搜尋法規與公司制度 | ChromaDB 向量搜尋 |
 | `lookup_employee(identifier)` | 查詢員工基本資料 | Pandas CSV 查詢 |
-| `calculate_leave(identifier)` | 計算特休剩餘天數 | Python 確定性計算 |
+| `calculate_leave(identifier)` | 計算各假別使用情況與剩餘天數 | Python 確定性計算 |
 
 **關鍵設計原則：計算不交給 LLM，只交給 Python。**
 特休天數、薪資加總等數值計算由 Python 函數完成後，LLM 只負責組合自然語言回答。
@@ -342,7 +356,7 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 ```
 POST /api/v1/copilot/query
 
-Request:  { "question": "工號15505王大明還剩幾天特休？" }
+Request: { "question": "工號10001王大明還剩幾天特休？" }
 Response: { "answer": "...", "tool_used": "calculate_leave" }
 ```
 
@@ -358,7 +372,7 @@ LangGraph Structured Workflow，讓 HR 用一句自然語言觸發完整 JD 優�
 
 | 面向 | v1.6.1 | v1.7 |
 |------|--------|------|
-| 路由機制 | branch_node 關鍵字比對 | `parse_input_node` 提取 `parsed_intent`，LLM 語意理解 |
+| 路由機制 | branch_node 關鍵字硬比對 | `parse_input_node` 提取 `parsed_intent`，LLM 語意理解後 branch_node 讀取結果路由 |
 | Company Profile | 前端手動填寫（必填）| `parse_input_node` 從自然語言自動提取（選填）|
 | 補問機制 | 無（直接執行，可能低品質）| `clarify_node` 在必要資訊不足時主動補問 |
 | AgentState 新增 | — | `parsed_intent: list[str]`、`clarification_needed: str \| None` |
@@ -366,50 +380,75 @@ LangGraph Structured Workflow，讓 HR 用一句自然語言觸發完整 JD 優�
 **Workflow 執行流程（v1.7）**
 
 ```
-parse_input_node（LLM 提取結構化欄位 + parsed_intent）
-        ↓
-clarify_node（判斷資訊是否充足）
-    ↙               ↘
-補問並結束         繼續執行
-                      ↓
-        有 jd_text：
-        analyze_node → rewrite_node → persona_node → branch_node
-                                                          ↓
-                                    none  → synthesize_node
-                                    salary → salary_node → synthesize_node
-                                    sourcing → sourcing_node → synthesize_node
-                                    both → salary_node → sourcing_node → synthesize_node
+**Workflow 執行流程（v1.7）**
 
-        無 jd_text（純諮詢）：
-        copilot_node → synthesize_node → END
 ```
+START
+  ↓
+parse_input_node
+(LLM 提取結構化欄位 + parsed_intent)
+  ↓
+clarify_node
+(判斷資訊是否充足)
+  │
+  ├─── 資訊缺失 ──► end_with_clarify_node ──► END
+  │                 (包裝提問為 final_report)
+  │
+  └─── 資訊完整
+          │
+          ├─── 有 jd_text ──► analyze_node
+          │                        ↓
+          │                   rewrite_node
+          │                        ↓
+          │                   persona_node
+          │                        ↓
+          │                   branch_node (讀取 parsed_intent)
+          │                        │
+          │          ┌─────────────┼─────────────┬─────────────┐
+          │         none         salary        sourcing       both
+          │          │             ↓             ↓             ↓
+          │          │        salary_node    sourcing_node  salary_node
+          │          │             │               │           ↓
+          │          │             │               │       sourcing_node
+          │          └─────────────┴───────────────┴───────────┘
+          │                                  ↓
+          │                           synthesize_node ──► END
+          │
+          └─── 無 jd_text ──► copilot_node ──► synthesize_node ──► END
 
+```
+```
 **AgentState（v1.7）**
 
 ```python
 class AgentState(TypedDict):
-    # 使用者輸入
-    user_input: str | None
-    job_title: str | None
-    jd_text: str | None
-    company_profile: dict | None
-    # v1.7 新增
-    parsed_intent: list[str]          # 意圖清單，例 ["rewrite", "salary"]
-    clarification_needed: str | None  # 補問訊息文字；None 表示資訊充足
-    # 各模組執行結果
-    analysis_result: dict | None      # 模組 A
-    rewrite_result: dict | None       # 模組 B
-    selected_jd: str | None
-    persona_result: dict | None       # 模組 D
-    salary_result: dict | None        # 模組 C
-    sourcing_result: dict | None      # 模組 E
-    rag_context: str | None           # 模組 F
+    # LangGraph 必填：對話訊息串（自動累積，不覆蓋）
+    messages: Annotated[list[BaseMessage], add_messages]
+
+    # 使用者輸入（從 AgentRequest 帶入）
+    user_input: str
+    job_title: NotRequired[str | None]
+    jd_text: NotRequired[str | None]
+    company_profile: NotRequired[dict[str, Any] | None]
+
+    # 各模組執行結果（由各 Node 寫入，使用 Pydantic Response Schema）
+    analysis_result: NotRequired[AnalyzeJDResponse]       # 模組 A
+    rewrite_result: NotRequired[RewriteJDResponse]        # 模組 B
+    salary_result: NotRequired[SalaryCheckResponse]       # 模組 C
+    persona_result: NotRequired[GeneratePersonaResponse]  # 模組 D
+    sourcing_result: NotRequired[SourcingResult]          # 模組 E
+    copilot_result: NotRequired[CopilotResponse]          # 模組 F
+
     # 路由控制
-    branch_decision: str | None       # none / salary / sourcing / both
+    branch_decision: NotRequired[str]   # salary / sourcing / both / none
+
     # 輸出
-    final_report: str | None
-    error_messages: list[str]
+    final_report: NotRequired[str]
+    error_messages: Annotated[list[str], operator.add]
 ```
+
+> `parsed_intent` 與 `clarification_needed` 由 `parse_input_node` / `clarify_node` 動態寫入 state，
+> 並由 `run_agent()` 讀取後包進 `AgentResponse` 回傳前端，不定義在 TypedDict 靜態欄位中。
 
 **各節點說明**
 
@@ -417,6 +456,7 @@ class AgentState(TypedDict):
 |------|----------|----------|
 | `parse_input_node` | — | 每次執行必執行（v1.7 新增）|
 | `clarify_node` | — | parse_input 完成後（v1.7 新增）|
+| `end_with_clarify_node` | — | 資訊缺失時，包裝提問為 final_report 後結束 |
 | `analyze_node` | 模組 A | 有 jd_text 時必執行 |
 | `rewrite_node` | 模組 B | analyze 完成後必執行 |
 | `persona_node` | 模組 D | rewrite 完成後必執行 |
@@ -545,8 +585,4 @@ HR 知識助手的意圖判斷採 regex + 關鍵字比對，不呼叫 LLM。行�
 **6. Orchestration Layer 分層解耦（模組 G）**
 `app/orchestration/tools.py` 作為 Workflow 與 Service 之間的適配器層，兩者互不直接 import。Streamlit 前端繼續走 HTTP，Agent 對話介面是新增入口，兩種介面並存不互相干擾。
 
----
 
-## 相關文件
-
-- 📄 [企劃書 v1.7](./AI_Talent_Magnet_企劃書_v1.7.0.docx)
