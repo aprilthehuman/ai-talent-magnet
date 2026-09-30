@@ -380,44 +380,48 @@ LangGraph Structured Workflow，讓 HR 用一句自然語言觸發完整 JD 優�
 **Workflow 執行流程（v1.7）**
 
 ```
-**Workflow 執行流程（v1.7）**
-
-```
 START
-  ↓
+  |
+  v
 parse_input_node
 (LLM 提取結構化欄位 + parsed_intent)
-  ↓
+  |
+  v
 clarify_node
 (判斷資訊是否充足)
-  │
-  ├─── 資訊缺失 ──► end_with_clarify_node ──► END
-  │                 (包裝提問為 final_report)
-  │
-  └─── 資訊完整
-          │
-          ├─── 有 jd_text ──► analyze_node
-          │                        ↓
-          │                   rewrite_node
-          │                        ↓
-          │                   persona_node
-          │                        ↓
-          │                   branch_node (讀取 parsed_intent)
-          │                        │
-          │          ┌─────────────┼─────────────┬─────────────┐
-          │         none         salary        sourcing       both
-          │          │             ↓             ↓             ↓
-          │          │        salary_node    sourcing_node  salary_node
-          │          │             │               │           ↓
-          │          │             │               │       sourcing_node
-          │          └─────────────┴───────────────┴───────────┘
-          │                                  ↓
-          │                           synthesize_node ──► END
-          │
-          └─── 無 jd_text ──► copilot_node ──► synthesize_node ──► END
+  |
+  +--- 資訊缺失 ---> end_with_clarify_node ---> END
+  |                  (包裝提問為 final_report)
+  |
+  +--- 資訊完整
+          |
+          +--- 有 jd_text ---> analyze_node
+          |                        |
+          |                        v
+          |                   rewrite_node
+          |                        |
+          |                        v
+          |                   persona_node
+          |                        |
+          |                        v
+          |                   branch_node (讀取 parsed_intent)
+          |                        |
+          |           +------------+------------+------------+
+          |          none        salary      sourcing      both
+          |           |            |            |            |
+          |           |            v            v            v
+          |           |       salary_node  sourcing_node  salary_node
+          |           |            |            |            |
+          |           |            |            |            v
+          |           |            |            |       sourcing_node
+          |           +------------+------------+------------+
+          |                                     |
+          |                                     v
+          |                             synthesize_node ---> END
+          |
+          +--- 無 jd_text ---> copilot_node ---> synthesize_node ---> END
+```
 
-```
-```
 **AgentState（v1.7）**
 
 ```python
