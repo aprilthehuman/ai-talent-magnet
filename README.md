@@ -62,7 +62,7 @@ JD 輸入
 | LLM 框架 | LangChain + LangGraph | Tool-calling + StateGraph |
 | Agent 追蹤 | LangSmith | LLM 追蹤與 Workflow 除錯 |
 | 資料處理 | pandas | 官方資料 ETL + 員工 CSV 查詢 |
-| 部署 | Docker + Railway | 簡單、免費額度夠用 |
+| 部署 | Docker + Railway（Phase 4 規劃中）| 前後端同平台、支援 Volume、不休眠  |
 
 ### 四層架構
 
@@ -347,8 +347,8 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 
 | 檔案 | 說明 |
 |------|------|
-| `employees.csv` | 20 位員工（employee_id、姓名、部門、職稱、到職日、月薪）|
-| `leave_records.csv` | 78 筆請假紀錄（特休、事假、病假）|
+| `employees.csv` | 20 位員工（employee_id、姓名、部門、職稱、到職日、在職狀態、月薪、性別、email）|
+| `leave_records.csv` | 84 筆請假紀錄（特休、事假、病假）|
 | `salary_records.csv` | 160 筆薪資紀錄（2026 年 1–8 月，底薪、獎金、加班費）|
 
 **API**
@@ -443,16 +443,17 @@ class AgentState(TypedDict):
     sourcing_result: NotRequired[SourcingResult]          # 模組 E
     copilot_result: NotRequired[CopilotResponse]          # 模組 F
 
-    # 路由控制
-    branch_decision: NotRequired[str]   # salary / sourcing / both / none
+    # 控制欄位
+    parsed_intent: NotRequired[list[str]]           # parse_input_node 寫入：rewrite / salary / sourcing / hr_qa 的子集
+    clarification_needed: NotRequired[str | None]   # clarify_node 寫入：資訊不足時的補問文字
+    branch_decision: NotRequired[str]               # salary / sourcing / both / none
 
     # 輸出
     final_report: NotRequired[str]
     error_messages: Annotated[list[str], operator.add]
 ```
 
-> `parsed_intent` 與 `clarification_needed` 由 `parse_input_node` / `clarify_node` 動態寫入 state，
-> 並由 `run_agent()` 讀取後包進 `AgentResponse` 回傳前端，不定義在 TypedDict 靜態欄位中。
+
 
 **各節點說明**
 
@@ -522,7 +523,11 @@ Request:
 ### 安裝依賴
 
 ```bash
-conda activate ai-talent-magnet
+# 建立並啟用 conda 環境（首次執行）
+conda create -n talent-magnet python=3.11
+conda activate talent-magnet
+
+# 安裝套件
 pip install -r requirements.txt
 ```
 
@@ -545,8 +550,8 @@ python scripts/build_vector_store.py
 # FastAPI 後端
 uvicorn app.main:app --reload
 
-# Streamlit 前端（另開 terminal）
-streamlit run 🏠_首頁.py
+# Streamlit 前端（另開 terminal，在專案根目錄執行）
+streamlit run "frontend/🏠_首頁.py"
 ```
 
 ### 環境變數
