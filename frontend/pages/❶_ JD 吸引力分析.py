@@ -7,15 +7,55 @@ Module A：JD Attraction Analyzer
 import os
 
 import streamlit as st
-import requests   # 用來呼叫我們的 FastAPI 後端
+import requests   # 用來呼叫 FastAPI 後端
 
 # 後端 API 位址：本地開發預設 localhost:8000，部署到 Railway 時由環境變數 API_BASE_URL 覆蓋
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+
+# 扣分規則（顯示分數明細用）
+# 注意：這兩個數字要與 app/services/analyzer_service.py 的扣分規則保持一致
+NEGATIVE_PENALTY = 5   # 負面詞每個扣 5 分
+VAGUE_PENALTY = 3      # 模糊用語每個扣 3 分
 
 
 # ── 頁面標題 ──────────────────────────────────────────────
 st.title("📋 JD 吸引力分析")
 st.markdown("貼上你的職缺描述，AI 幫你找出會讓候選人卻步的問題。")
+
+# ── 計分規則說明 ──────────────────────────────────────────
+# 用 container(border=True) 做出有框的區塊，跟下面的 st.info 做視覺區隔
+with st.container(border=True):
+    st.markdown("#### 📐 計分規則")
+    st.code("最終分數 = 60 + AI 語氣分（0~40）− 規則扣分", language=None)
+    st.markdown(
+        """
+- **底分 60**：代表一份基本可用的 JD
+- **AI 語氣分（0~40）**：AI 從候選人角度評估整體語氣，給 0 到 40 分的印象分
+- **規則扣分**：依下方檢查表逐項扣分，**不設上限**
+- 最終分數最低 0 分、最高 100 分
+
+**等級：** 優良 80–100 ｜ 普通 60–79 ｜ 偏低 40–59 ｜ 危險 0–39
+"""
+    )
+    
+# 提醒使用者哪些內容會影響分數（對應 keyword_dicts.py 的判斷規則）
+st.info(
+    """
+**想拿高分，JD 本文請盡量寫到這四類資訊（缺一類就扣分）：**
+
+- 💰 **薪資**（−10）：寫出「薪資、月薪、年薪、待遇」，或數字加 K，例如 `58K–72K`等
+- 📋 **工作內容**（−10）：寫出「負責、工作內容、職責、你將負責」等
+- 🌱 **成長機會**（−8）：寫出「成長、學習、發展、培訓、mentor」等
+- 🤝 **團隊文化**（−5）：寫出「團隊、文化、氛圍、夥伴」等
+
+**另外要避開這些用語：**
+
+- 負面詞（每個 −5）：抗壓、加班、責任制、獨當一面、配合度高…
+- 模糊用語（每個 −3）：其他相關業務、視情況調整、協助主管…
+
+最後還有 AI 依整體語氣給 0–40 分的印象分。
+"""
+)
 st.markdown("---")
 
 # ── 輸入區 ────────────────────────────────────────────────
@@ -57,6 +97,12 @@ with col2:
         value=0,
         help="例：70000"
     )
+    
+# 薪資欄位說明：提醒使用者這欄不會被模組 A 讀取
+st.caption(
+    "💡 此欄位供模組 C 使用。若希望 JD 不被扣「未提供薪資」，"
+    "請把薪資寫進 JD 本文。"
+)
 
 
 # 進階選項用 expander 收起來，避免頁面太複雜
@@ -81,6 +127,7 @@ with st.expander("⚙️ 進階選項（選填）"):
         )
 
 st.markdown("---")
+
 
 # ── 送出按鈕 ──────────────────────────────────────────────
 # st.button() 回傳 True/False，被點擊時回傳 True
@@ -160,52 +207,102 @@ if st.session_state["module_a_result"]:
 
     st.markdown("---")
 
-    # 語氣分析
-    st.markdown("### 🎯 語氣分析")
+    # ── 分數計算明細 ───────────────────────────────────────
+    st.markdown("### 🧮 分數是怎麼算出來的")
+ 
+    neg_list = result["negative_keywords_detected"]
+    vague_list = result["vague_phrases_detected"]
+    missing_list = result["missing_elements"]
+    tone_score = result.get("tone_score")   # 舊結果可能沒有這個欄位
+ 
+    # 各類扣分小計
+    neg_total = len(neg_list) * NEGATIVE_PENALTY
+    vague_total = len(vague_list) * VAGUE_PENALTY
+    missing_total = sum(item["penalty"] for item in missing_list)
+    total_deduction = neg_total + vague_total + missing_total
+ 
+    if tone_score is None:
+        st.info("此結果缺少 AI 語氣分，請重新按一次「開始分析」。")
+    else:
+        # 用 Markdown 表格逐列組出來：加分在上、扣分在下、合計在最後
+        rows = [
+            "| 項目 | 內容 | 分數 |",
+            "|---|---|---:|",
+            "| 底分 | 一份基本可用的 JD | +60 |",
+            f"| AI 語氣分 | 0–40 分，AI 評估整體語氣 | +{tone_score} |",
+        ]
+        if neg_list:
+            rows.append(
+                f"| 負面詞 × {len(neg_list)} | {'、'.join(neg_list)}（每個 −{NEGATIVE_PENALTY}） | −{neg_total} |"
+            )
+        if vague_list:
+            rows.append(
+                f"| 模糊用語 × {len(vague_list)} | {'、'.join(vague_list)}（每個 −{VAGUE_PENALTY}） | −{vague_total} |"
+            )
+        for item in missing_list:
+            rows.append(f"| 缺失資訊 | {item['label']} | −{item['penalty']} |")
+        if total_deduction == 0:
+            rows.append("| 規則扣分 | ✅ 沒有扣分項目 | 0 |")
+ 
+        raw_score = 60 + tone_score - total_deduction
+        rows.append(
+            f"| **合計** | 60 + {tone_score} − {total_deduction} | **{raw_score}** |"
+        )
+        st.markdown("\n".join(rows))
+ 
+        # 算出來超出 0–100 時，提醒使用者最終分數被夾住
+        if raw_score != result["attraction_score"]:
+            st.caption(
+                f"⚠️ 計算結果為 {raw_score}，超出 0–100 範圍，"
+                f"最終分數取 {result['attraction_score']}。"
+            )
+ 
+    st.markdown("---")
+ 
+    # AI 語氣評語（文字說明；分數在上方明細表）
+    st.markdown("### 🎯 AI 語氣評語")
     # st.info() 顯示藍色資訊框，適合放重要說明文字
     st.info(result["tone_analysis"])
-
+ 
     # 負面詞彙和模糊用語並排
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("### ⚠️ 偵測到的負面詞彙")
-        if result["negative_keywords_detected"]:
-            for kw in result["negative_keywords_detected"]:
+        if neg_list:
+            for kw in neg_list:
                 # st.markdown() 搭配 emoji 做成簡單的清單
                 st.markdown(f"- 🔴 {kw}")
         else:
             st.markdown("✅ 無負面詞彙")
-
+ 
     with col2:
         st.markdown("### 💬 模糊用語")
-        if result["vague_phrases_detected"]:
-            for phrase in result["vague_phrases_detected"]:
+        if vague_list:
+            for phrase in vague_list:
                 st.markdown(f"- 🟡 {phrase}")
         else:
             st.markdown("✅ 無模糊用語")
-
+ 
     st.markdown("---")
-
+ 
     # 缺失項目
-    # missing_elements 現在是 list[MissingElement]，每個元素包含 label 和 penalty
+    # missing_elements 是 list[MissingElement]，每個元素包含 label 和 penalty
     # 顯示缺失項目名稱和對應的扣分，讓 HR 知道哪個問題最嚴重
     st.markdown("### 📌 缺失的重要資訊")
-    if result["missing_elements"]:
-        for item in result["missing_elements"]:
-            # item 是字典，用 item["label"] 取名稱，item["penalty"] 取扣分
-            st.markdown(f"- {item['label']}：扣 {item['penalty']} 分")
+    if missing_list:
+        for item in missing_list:
+            st.markdown(f"- {item['label']}")
     else:
         st.markdown("✅ 資訊完整")
-
+ 
     st.markdown("---")
-
+ 
     # 改善建議
     st.markdown("### 💡 改善建議")
     for i, suggestion in enumerate(result["improvement_suggestions"], 1):
         # st.expander() 讓每條建議可以折疊，頁面不會太長
         with st.expander(f"建議 {i}"):
             st.markdown(suggestion)
-
     st.markdown("---")
 
     # 引導使用者進行下一步
