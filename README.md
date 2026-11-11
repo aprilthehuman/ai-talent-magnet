@@ -2,7 +2,7 @@
 
 > 一個幫企業提升招募吸引力的 AI 系統，從被動等履歷轉為主動提升職缺競爭力。
 
-**版本：** v1.7 | **作者：** April | **更新：** 2026-09
+**版本：** v1.7.1 | **作者：** April | **更新：** 2026-11
 
 ---
 
@@ -86,7 +86,7 @@ app/
 ├── config.py                      # 全域設定（API 金鑰、ChromaDB 路徑、chunk 參數）
 ├── main.py                        # FastAPI 主程式，掛載所有 router
 ├── core/
-│   ├── keyword_dicts.py           # 職稱同義詞字典、負面詞彙、模糊用語
+│   ├── keyword_dicts.py           # 職稱同義詞字典、負面詞彙、模糊用語、缺失項目檢查
 │   └── prompts/
 │       └── sourcing_prompts.py    # 模組 E 的 Prompt 模板
 ├── models/                        # Pydantic v2 Schema（Request / Response）
@@ -129,7 +129,7 @@ app/
 │   ├── dgbas_company_size.csv     # 主計總處表3：產業×規模薪資（ETL 輸出）
 │   └── employees/                 # 模組 F 員工模擬資料
 │       ├── employees.csv          # 20 筆員工基本資料
-│       ├── leave_records.csv      # 78 筆請假紀錄
+│       ├── leave_records.csv      # 84 筆請假紀錄
 │       └── salary_records.csv     # 160 筆薪資紀錄
 └── vector_store/                  # ChromaDB 持久化儲存（模組 F）
 
@@ -169,22 +169,33 @@ data_raw/                          # 原始政府統計 Excel（不進版控）
 | `company_type` | string | — | startup / SME / enterprise |
 | `industry` | string | — | 例：SaaS / 電商 / 金融 |
 | `seniority_level` | string | — | junior / mid / senior |
-| `salary_min` | int | — | JD 薪資下限（月薪，元）|
-| `salary_max` | int | — | JD 薪資上限（月薪，元）|
+| `salary_min` | int | — | JD 薪資下限（月薪，元）（供模組 C 使用，模組 A 不讀取）|
+| `salary_max` | int | — | JD 薪資上限（月薪，元）（供模組 C 使用，模組 A 不讀取）|
 
 **輸出**
 
 | 欄位 | 類型 | 說明 |
 |------|------|------|
 | `attraction_score` | int (0–100) | 綜合吸引力分數 |
+| `tone_score` | int (0–40) | AI 語氣分 |
 | `score_label` | string | 優良 / 普通 / 偏低 / 危險 |
 | `tone_analysis` | string | 80–100 字語氣分析 |
 | `negative_keywords_detected` | array | 偵測到的負面詞彙 |
 | `vague_phrases_detected` | array | 偵測到的模糊用語 |
 | `missing_elements` | array | 缺失的重要資訊（含扣分數）|
-| `improvement_suggestions` | array | 3 條改善建議 |
+| `improvement_suggestions` | array | 3 條改善建議（【問題】→【原因】→【建議】） |
 
-**分數邏輯：** 規則層（最高 60 分）+ AI 層（最高 40 分）混合評分。
+
+**分數邏輯：** 最終分數 = min(100, max(0, 60 + AI 語氣分 − 規則扣分))，範圍 0–100。
+
+- **底分 60**：代表一份基本可用的 JD
+- **AI 語氣分（0–40）**：LLM 從候選人角度評估整體語氣；程式會把回傳值限制在 0–40
+- **規則扣分（不設上限）**：
+  - 負面詞每個 −5、模糊用語每個 −3（較長詞命中時，不重複計入其包含的短詞，例如「抗壓性高」不會再加扣「抗壓」）
+  - 四項缺失資訊：薪資 −10、工作內容 −10、成長機會 −8、團隊文化 −5
+  - 薪資先比對關鍵字（薪資、月薪、年薪、待遇），再以正規表示式辨識「數字 + K」（如 `58K–72K`）
+- 等級：優良 80–100 ｜ 普通 60–79 ｜ 偏低 40–59 ｜ 危險 0–39
+- 前端頁面會顯示計分規則與每次分析的分數明細表
 
 ---
 
@@ -348,8 +359,8 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 | 檔案 | 說明 |
 |------|------|
 | `employees.csv` | 20 位員工（employee_id、姓名、部門、職稱、到職日、在職狀態、月薪、性別、email）|
-| `leave_records.csv` | 84 筆請假紀錄（特休、事假、病假）|
-| `salary_records.csv` | 160 筆薪資紀錄（2026 年 1–8 月，底薪、獎金、加班費）|
+| `leave_records.csv` | 84 筆請假紀錄（特休、事假、病假、生理假、婚假、喪假、陪產假、育嬰假、補休、公假；含 approved / pending / rejected 狀態）|
+| `salary_records.csv` | 160 筆薪資紀錄（2026 年 1–8 月，底薪、獎金、加班費、扣款、實發薪資；底薪與 employees.csv 月薪一致）|
 
 **API**
 
