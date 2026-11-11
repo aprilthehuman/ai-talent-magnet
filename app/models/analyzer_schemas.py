@@ -7,7 +7,7 @@
   1. 純 Python 規則層（不呼叫 LLM）：
      - negative_keywords_detected：掃描負面詞彙字典
      - vague_phrases_detected：掃描模糊用語列表
-     - missing_elements：檢查五大缺失項目（薪資、成長、文化、工作內容、影響力）
+     - missing_elements：檢查四大缺失項目（薪資、成長、文化、工作內容）
 
   2. LLM 生成（AI 層）：
      - attraction_score：結合規則層扣分與 AI 語氣分數計算
@@ -25,10 +25,10 @@ from pydantic import BaseModel, Field
 class AnalyzeJDRequest(BaseModel):
     """
     模組 A 的輸入資料結構。
-    欄位來源分兩類：
+    欄位來源分三類：
     - HR 必填：job_title、job_description_text
     - HR 選填（傳入 AI 層作為分析背景）：company_type、industry、seniority_level
-    - HR 選填（傳入模組 C 作為薪資對比依據）：salary_min、salary_max
+    - HR 選填（供模組 C 使用，模組 A 本身不讀取）：salary_min、salary_max
     """
     job_title: str = Field(
         ...,
@@ -88,6 +88,10 @@ class AnalyzeJDResponse(BaseModel):
     attraction_score: int = Field(
         ...,
         description="綜合吸引力分數（0–100）"
+    )
+    tone_score: int | None = Field(
+        default=None, 
+        description="AI 語氣分（0–40）"
     )
     score_label: str = Field(
         ...,

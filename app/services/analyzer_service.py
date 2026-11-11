@@ -2,19 +2,22 @@
 模組 A：JD Attraction Analyzer — Service 層
 核心邏輯：規則層 + AI 層混合評分，計算 JD 吸引力分數
 
-規則層（最高扣 60 分）：
+規則層（扣分，無上限）：
   - detect_negative_keywords()：掃描負面詞彙，每個扣 5 分
   - detect_vague_phrases()：掃描模糊用語，每個扣 3 分
-  - detect_missing_elements()：檢查缺失重要資訊，依項目扣分
+  - detect_missing_elements()：檢查四項缺失資訊（薪資 -10、工作內容 -10、
+    成長機會 -8、團隊文化 -5），薪資另以正規表達式辨識「數字+K」
 
-AI 層（0–40 分）：
+AI 層（加分，0–40 分）：
   - analyze_tone_with_ai()：呼叫 LLM 分析語氣整體感受，產出分數、描述與改善建議
 
-最終分數公式：min(100, max(0, 60 + AI層分數 - 規則層扣分))
+最終分數公式：min(100, max(0, 60 + AI層分數 - 規則層總扣分))
+底分 60，扣分不封頂，最後夾在 0–100 之間。
 """
 
 
 import os
+import re
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -22,7 +25,8 @@ from app.core.keyword_dicts import (
     NEGATIVE_KEYWORDS,
     VAGUE_PHRASES,
     MISSING_CHECKLIST,
-    MISSING_PENALTY
+    MISSING_PENALTY,
+    MISSING_REGEX
 )
 from app.models.analyzer_schemas import AnalyzeJDRequest, AnalyzeJDResponse, MissingElement
 
@@ -33,10 +37,15 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def detect_negative_keywords(text: str) -> list[str]:
     """掃描 JD 裡有沒有負面詞彙"""
-    found = []
-    for keyword in NEGATIVE_KEYWORDS:
-        if keyword in text:
-            found.append(keyword)
+    # 先找出所有命中的詞
+    found = [kw for kw in NEGATIVE_KEYWORDS if kw in text]
+
+    # 去重：若短詞是已命中長詞的一部分（例如「抗壓」⊂「抗壓性高」），
+    # 只保留長詞，避免同一句話被扣兩次分
+    found = [
+        kw for kw in found
+        if not any(kw != other and kw in other for other in found)
+    ]
     return found
 
 
@@ -53,13 +62,19 @@ def detect_missing_elements(text: str) -> tuple[list[MissingElement], int]:
     """
     檢查 JD 缺少哪些重要資訊
     回傳：(缺失項目清單, 總扣分)
-    缺失項目現在是 MissingElement 物件，包含 label 和 penalty
     """
     missing = []
     total_penalty = 0
 
     for category, keywords in MISSING_CHECKLIST:
+        # 第一關：關鍵字比對
         has_category = any(kw in text for kw in keywords)
+
+        # 第二關：關鍵字沒中時，再用正規表達式檢查（目前只有薪資用到）
+        if not has_category:
+            patterns = MISSING_REGEX.get(category, [])
+            has_category = any(re.search(p, text) for p in patterns)
+
         if not has_category:
             penalty = MISSING_PENALTY[category]["score"]
             label = MISSING_PENALTY[category]["label"]
@@ -120,8 +135,12 @@ JD 內容：
 
     result = json.loads(response.choices[0].message.content)
 
+    # 防呆：不管 AI 回傳什麼，都夾在 0~40 之間
+    # int() 順便處理 AI 回傳 "35" 字串的情況
+    tone_score = max(0, min(40, int(result["tone_score"])))
+
     return (
-        result["tone_score"],
+        tone_score,
         result["tone_description"],
         result["top_3_improvements"]
     )
@@ -168,6 +187,7 @@ def analyze_jd(request: AnalyzeJDRequest) -> AnalyzeJDResponse:
 
     return AnalyzeJDResponse(
         attraction_score=final_score,
+        tone_score=tone_score,
         score_label=get_score_label(final_score),
         tone_analysis=tone_desc,
         negative_keywords_detected=negative_found,

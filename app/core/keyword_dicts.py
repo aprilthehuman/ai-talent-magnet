@@ -6,6 +6,7 @@
   - NEGATIVE_KEYWORDS   → 模組 A：負面詞彙偵測與改寫建議
   - VAGUE_PHRASES       → 模組 A：模糊用語偵測
   - MISSING_CHECKLIST   → 模組 A：缺失項目檢查
+  - MISSING_REGEX       → 模組 A：缺失項目檢查（正規表達式比對，目前只有薪資用到）
   - MISSING_PENALTY     → 模組 A：缺失項目扣分與說明
   - TITLE_SYNONYMS      → 模組 E：職稱同義展開（正向查詢）
   - TITLE_SYNONYMS_REVERSE → 模組 E：職稱同義展開（反向查詢，自動產生）
@@ -42,12 +43,18 @@ VAGUE_PHRASES = [
 # 缺失項目檢查：JD 應該要有但常常沒有的東西
 # 格式：(項目代碼, 用來偵測是否存在的關鍵字清單)
 MISSING_CHECKLIST = [
-    ("salary",  ["薪資", "月薪", "年薪", "K", "待遇", "salary"]),
+    ("salary",  ["薪資", "月薪", "年薪", "待遇", "salary"]),
     ("growth",  ["成長", "學習", "發展", "培訓", "mentor", "training"]),
     ("culture", ["團隊", "文化", "氛圍", "夥伴", "culture"]),
-    ("content", ["負責", "工作內容", "職責", "你將會", "你將負責"]),
-    ("impact",  ["影響", "貢獻", "ownership", "專案", "impact"]),
+    ("content", ["負責", "工作內容", "職責", "你將會", "你將負責"])
 ]
+
+# 需要用正規表達式比對的項目
+# 規則：「數字 + K/k」，且 K 後面不能接英文字母或數字
+# 這樣 58k、60-80K、58K以上 會中；Kubernetes、Kafka、5kg、3 K8s 不會中
+MISSING_REGEX = {
+    "salary": [r"\d+\s*[kK](?![a-zA-Z0-9])"],
+}
 
 # 缺失項目對應的扣分與說明
 # key 與 MISSING_CHECKLIST 的項目代碼對應
@@ -55,8 +62,7 @@ MISSING_PENALTY = {
     "salary":  {"score": 10, "label": "未提供薪資範圍"},
     "growth":  {"score": 8,  "label": "未提及成長機會"},
     "culture": {"score": 5,  "label": "未描述團隊文化"},
-    "content": {"score": 10, "label": "未說明具體工作內容"},
-    "impact":  {"score": 5,  "label": "未說明工作影響力"},
+    "content": {"score": 10, "label": "未說明具體工作內容"}
 }
 
 
