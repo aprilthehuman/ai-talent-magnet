@@ -5,10 +5,13 @@ Module D：Candidate Persona Generator
 新增：education_preference 學歷參考條件（選填），存進 session_state 供 Module E 使用
 """
 
+import os
 
 import streamlit as st
 import requests
 
+# 後端 API 位址：本地開發預設 localhost:8000，部署到 Railway 時由環境變數 API_BASE_URL 覆蓋
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 # ── 強制流程順序：必須先完成 Module A 和 B 才能進入此頁 ────────────
 if not st.session_state.get("module_a_result"):
@@ -74,7 +77,7 @@ if st.button(
     with st.spinner("AI 分析理想候選人中..."):
         try:
             response = requests.post(
-                "http://localhost:8000/api/v1/generate-persona",
+                f"{API_BASE_URL}/api/v1/generate-persona",
                 json={
                     "job_title": st.session_state.get("job_title", ""),
                     "company_type": st.session_state.get("company_type"),

@@ -16,10 +16,14 @@ v1.7 UI 改版：
       2. 無 JD：執行 Module F（HR 知識問答）
 """
 
+import os
+
 import requests
 import streamlit as st
 
-API_URL = "http://localhost:8000/api/v1/run-agent"
+# 後端 API 位址：本地開發預設 localhost:8000，部署到 Railway 時由環境變數 API_BASE_URL 覆蓋
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+API_URL = f"{API_BASE_URL}/api/v1/run-agent"
 
 # ── 頁面設定 ─────────────────────────────────────────────────
 
