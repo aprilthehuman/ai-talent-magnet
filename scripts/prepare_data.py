@@ -145,8 +145,11 @@ def prepare_dgbas_education() -> None:
     df = df.reset_index(drop=True)
 
     # 過濾空行
+    # pandas 3.x 的空值不會變成 "nan" 字串，所以要先用 dropna 擋掉缺值
+    df = df.dropna(subset=["industry"]).copy()
     df["industry"] = df["industry"].astype(str).str.strip()
-    df = df[~df["industry"].isin(["nan", ""])].copy()
+    # 再擋掉「只有空白字元」的產業名稱
+    df = df[df["industry"] != ""].copy()
 
     # 轉數字
     for col in ["不限", "國中及以下", "高中職", "專科及大學", "研究所"]:
@@ -195,8 +198,11 @@ def prepare_dgbas_company_size() -> None:
     df = df.reset_index(drop=True)
 
     # 過濾空行
+    # pandas 3.x 的空值不會變成 "nan" 字串，所以要先用 dropna 擋掉缺值
+    df = df.dropna(subset=["industry"]).copy()
     df["industry"] = df["industry"].astype(str).str.strip()
-    df = df[~df["industry"].isin(["nan", ""])].copy()
+    # 再擋掉「只有空白字元」的產業名稱
+    df = df[df["industry"] != ""].copy()
 
     # 轉數字
     for col in ["startup", "SME", "enterprise"]:
