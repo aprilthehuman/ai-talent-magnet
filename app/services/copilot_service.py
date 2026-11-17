@@ -8,6 +8,7 @@ Module F：HR 知識助手 — LangChain Tools 定義
 """
 
 # 1. 標準函式庫
+import re
 import sys
 from pathlib import Path
 from datetime import date
@@ -16,6 +17,7 @@ from datetime import date
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 # 3. 第三方套件
+import jieba.posseg as pseg
 import pandas as pd
 from dotenv import load_dotenv
 from langchain_core.tools import tool
@@ -29,6 +31,7 @@ from app.config import (
     COLLECTION_NAME,
     EMBEDDING_MODEL,
 )
+from app.models.copilot_schemas import CopilotResponse
 
 # 5. 執行邏輯
 load_dotenv()
@@ -245,3 +248,111 @@ def calculate_leave(identifier: str) -> str:
         lines.append("  本年度無紀錄")
 
     return "\n".join(lines)
+
+
+# ════════════════════════════════════════════════════════════════
+# Dispatch 層
+# ════════════════════════════════════════════════════════════════
+# ── 常用台灣姓氏（jieba 對 CJK 姓氏詞性標記不穩定，需手動補充）────
+_COMMON_SURNAMES = set(
+    "陳林黃張李王吳劉蔡楊許鄭謝洪曾邱廖賴徐周葉蘇莊呂江何蕭羅高游"
+    "盧方鄧韓馮曹彭潘鍾余唐胡姜梁孫趙馬童魏石詹沈施朱翁戴鄒溫阮倪"
+    "侯袁薛蔣聶范傅盛錢尤文龍杜田藍關黎史嚴夏歐柳葛陸戚邵孟"
+)
+
+_LEAVE_KEYWORDS = {"特休", "事假", "病假", "生理假", "婚假", "喪假",
+                   "產假", "陪產假", "育嬰假", "補休", "公假", "假期", "餘額",
+                   "請假", "假別", "假況", "假狀"}
+_EMPLOYEE_KEYWORDS = {"員工", "工號", "姓名", "職稱", "部門", "薪資", "到職",
+                      "基本資料", "資料", "聯絡", "信箱", "email"}
+
+_EMP_ID_PATTERN = re.compile(r"(?<!\d)\d{5}(?!\d)")
+
+
+def _extract_name(text: str) -> str | None:
+    """
+    從句子中萃取人名，三層策略：
+    Layer 1（jieba nr/nz）→ Layer 2（regex fallback 姓氏 + 名字）
+    """
+    word_list = list(pseg.cut(text))
+
+    for i, (word, flag) in enumerate(word_list):
+        if flag in ("nr", "nz"):
+            if len(word) == 1 and i + 1 < len(word_list):
+                next_word, next_flag = word_list[i + 1]
+                if re.match(r"^[\u4e00-\u9fff]+$", next_word) \
+                        and next_flag not in ("v", "d", "m", "r", "p"):
+                    return word + next_word
+            if len(word) >= 2 and i > 0:
+                prev_word, _ = word_list[i - 1]
+                if len(prev_word) == 1 and prev_word in _COMMON_SURNAMES:
+                    return prev_word + word
+            return word
+
+    _STOP = "的了在是他她我你們都也很就這那什麼，。！？「」、"
+    surnames_str = "".join(_COMMON_SURNAMES)
+    pattern = re.compile(
+        r"([" + surnames_str + r"])"
+        r"([\u4e00-\u9fff]{1,3})"
+        r"(?=[" + _STOP + r"\d\s]|$)"
+    )
+    for m in pattern.finditer(text):
+        full_name = m.group(0)
+        if len(full_name) >= 2:
+            return full_name
+
+    return None
+
+
+def dispatch_query(question: str) -> CopilotResponse:
+    """
+    Rule-based dispatch：依問題內容選擇最合適的 Tool。
+    優先順序：員工編號 > 假別 > 員工資料 > RAG 知識庫
+    """
+    q = question.strip()
+    id_match = _EMP_ID_PATTERN.search(q)
+    has_leave = any(kw in q for kw in _LEAVE_KEYWORDS)
+
+    def _leave_response(identifier: str) -> CopilotResponse:
+        raw = calculate_leave.invoke({"identifier": identifier})
+        if not raw.startswith("查無員工"):
+            prompt = (
+                "你是一位專業 HR 助理。根據以下假別資料，用一句話直接回答使用者的問題。\n"
+                "只回答問題所問的內容，不要重複完整清單。\n\n"
+                f"使用者問題：{q}\n\n"
+                f"假別資料：\n{raw}"
+            )
+            conclusion = _llm.invoke(prompt).content.strip()
+            answer = f"{conclusion}\n\n---\n**📅 假別詳情**\n\n```\n{raw}\n```"
+        else:
+            answer = raw
+        return CopilotResponse(answer=answer, tool_used="calculate_leave")
+
+    if has_leave and id_match:
+        return _leave_response(id_match.group())
+
+    if has_leave:
+        name = _extract_name(q)
+        if name and len(name) >= 2:
+            return _leave_response(name)
+
+    has_employee = any(kw in q for kw in _EMPLOYEE_KEYWORDS) or id_match
+    if has_employee and not has_leave:
+        identifier = id_match.group() if id_match else _extract_name(q)
+        if identifier and (id_match or len(identifier) >= 2):
+            raw = lookup_employee.invoke({"identifier": identifier})
+            if not raw.startswith("查無員工"):
+                prompt = (
+                    "你是一位專業 HR 助理。根據以下員工資料，用一句話直接回答使用者的問題。\n"
+                    "只回答問題所問的內容，不要重複完整資料。\n\n"
+                    f"使用者問題：{q}\n\n"
+                    f"員工資料：\n{raw}"
+                )
+                conclusion = _llm.invoke(prompt).content.strip()
+                answer = f"{conclusion}\n\n---\n**👤 員工完整資料**\n\n```\n{raw}\n```"
+            else:
+                answer = raw
+            return CopilotResponse(answer=answer, tool_used="lookup_employee")
+
+    answer = rag_search.invoke({"query": q})
+    return CopilotResponse(answer=answer, tool_used="rag_search")
