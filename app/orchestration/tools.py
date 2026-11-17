@@ -12,8 +12,6 @@ orchestration/tools.py — Node 呼叫層（Service Adapter）
 設計原則：
   - 函式簽名統一為 (state: AgentState) -> dict，方便 agent_service.py 統一呼叫
   - 不使用 @tool decorator（本架構是 Structured Workflow，不是 ReAct Agent）
-  - AgentRequest 的 model_validator 已確保有 jd_text 時 company_profile 必存在，
-    因此 run_rewrite_jd / run_generate_persona 可直接存取，不需再做防呆
   - Module B 改寫後，Agent 自動選取 startup_version 作為後續流程的基底 JD
     （Streamlit 互動版本才需要 HR 手動選版本）
   - 各函式內部的 try / except 將錯誤寫入 error_messages，
@@ -94,14 +92,15 @@ def run_analyze_jd(state: AgentState) -> dict:
 def run_rewrite_jd(state: AgentState) -> dict:
     """
     呼叫 Module B（JD 改寫）。
-    前提：AgentRequest 的 model_validator 已確保有 jd_text 時 company_profile 必存在，
-    因此直接存取 state["company_profile"]，不需要額外防呆。
+    v1.7：company_profile 已改為選填，以 .get() 存取並以空 dict 為預設值，
+    讓 CompanyProfile 的 Pydantic 預設值接手，rewrite 仍可以通用風格執行。
     改寫成功後，Agent 自動選用 startup_version 作為後續流程的基底 JD。
     """
     try:
+        profile_dict = state.get("company_profile") or {}   
         request = RewriteJDRequest(
             original_jd=state.get("jd_text") or "",
-            company_profile=_to_company_profile(state["company_profile"]),
+            company_profile=_to_company_profile(profile_dict)
         )
 
         result = rewrite_jd(request)
@@ -120,7 +119,7 @@ def run_generate_persona(state: AgentState) -> dict:
     直接使用 Module B 改寫後的 startup_version 作為 JD 輸入。
     """
     try:
-        profile_dict = state["company_profile"]
+        profile_dict = state.get("company_profile") or {}
         rewrite_result = state["rewrite_result"]
 
         request = GeneratePersonaRequest(

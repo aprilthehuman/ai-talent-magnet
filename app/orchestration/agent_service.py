@@ -27,9 +27,11 @@ workflow 路徑（v1.7）：
                              END
 """
 
+
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from langchain_openai import ChatOpenAI
@@ -120,7 +122,6 @@ def parse_input_node(state: AgentState) -> dict:
         response = llm.invoke([{"role": "user", "content": prompt}])
 
         # ── Bug 修正 1：剝除 LLM 可能自動加上的 markdown code block ──
-        import re
         content = response.content.strip()
         if "```" in content:
             content = re.sub(r"```(?:json)?\s*", "", content).strip()
