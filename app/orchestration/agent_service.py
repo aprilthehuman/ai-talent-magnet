@@ -68,8 +68,9 @@ def parse_input_node(state: AgentState) -> dict:
       - salary_max    ：薪資上限（數字，月薪 NT$）
       - company_type  ：公司類型（新創 / 中小企業 / 大型企業 / 外商）
       - seniority_level ：職級（Junior / Mid / Senior / Lead / Manager）
-      - intent        ：使用者意圖清單，可多選：
-                        "rewrite"  → 改寫 JD
+      - intent        ：必填，根據使用者想做什麼決定（可多選）：
+                        "analyze"  → 使用者想分析 JD 吸引力或產生候選人 Persona
+                        "rewrite"  → 使用者想改寫 JD
                         "salary"   → 薪資競爭力分析
                         "sourcing" → Sourcing 管道建議
                         "hr_qa"    → HR 知識問答（無 JD）
@@ -90,6 +91,7 @@ def parse_input_node(state: AgentState) -> dict:
 1. 只抽取使用者明確提到的資訊，不要推測或補充使用者未說的內容。
 2. JD 文字（jd_text）：若使用者貼上了完整職缺描述，完整保留；若只是描述需求，填 null。
 3. intent 必填，根據使用者想做什麼決定（可多選）：
+   - "analyze"  → 使用者想分析 JD 吸引力或產生候選人 Persona
    - "rewrite"  → 使用者想改寫 JD
    - "salary"   → 使用者想分析薪資競爭力或詢問薪資範圍
    - "sourcing" → 使用者想知道從哪裡找人才
@@ -114,7 +116,7 @@ def parse_input_node(state: AgentState) -> dict:
   "salary_max": 數字或null,
   "company_type": "新創/中小企業/大型企業/外商 或null",
   "seniority_level": "Junior/Mid/Senior/Lead/Manager 或null",
-  "intent": ["rewrite", "salary", "sourcing", "hr_qa 的子集"]
+  "intent": ["analyze", "rewrite", "salary", "sourcing", "hr_qa 的子集"]
 }}
 """
 
@@ -130,12 +132,13 @@ def parse_input_node(state: AgentState) -> dict:
 
         # ── Bug 修正 2：intent 中英文別名對映 ────────────────────────
         intent_alias = {
+            "analyze": "analyze", "分析": "analyze", "JD分析": "analyze",
             "rewrite": "rewrite", "改寫": "rewrite", "JD改寫": "rewrite",
             "salary": "salary",   "薪資": "salary",  "薪資分析": "salary",
             "sourcing": "sourcing", "找人": "sourcing", "招募管道": "sourcing",
             "hr_qa": "hr_qa", "知識問答": "hr_qa", "HR問答": "hr_qa",
         }
-        valid_intents = {"rewrite", "salary", "sourcing", "hr_qa"}
+        valid_intents = {"analyze", "rewrite", "salary", "sourcing", "hr_qa"}
         raw_intent = parsed.get("intent") or []
         parsed["intent"] = [
             intent_alias.get(i, i) for i in raw_intent
@@ -193,7 +196,7 @@ def clarify_node(state: AgentState) -> dict:
 
     缺失判斷邏輯（v1.7）：
       - intent 為空 → 請使用者說清楚需求
-      - intent 包含 rewrite / salary / sourcing 但沒有 jd_text → 需要 JD
+      - intent 包含 analyze / rewrite / salary / sourcing 但沒有 jd_text → 需要 JD
       - 注意：company_profile 已改為選填，不填仍可執行（以通用風格改寫），不再補問
     """
     intent = state.get("parsed_intent") or []
@@ -207,6 +210,7 @@ def clarify_node(state: AgentState) -> dict:
             "clarification_needed": (
                 "我還不太確定您想要什麼 😊\n\n"
                 "您可以告訴我以下任一需求：\n"
+                "- 「幫我分析這份 JD」（請附上 JD 內容）\n"
                 "- 「幫我改寫這份 JD」（請附上 JD 內容）\n"
                 "- 「分析這個職位的薪資競爭力」\n"
                 "- 「推薦 sourcing 管道」\n"
@@ -215,7 +219,7 @@ def clarify_node(state: AgentState) -> dict:
         }
 
     # 需要 JD 但沒有 JD
-    jd_needed_intents = {"rewrite", "salary", "sourcing"}
+    jd_needed_intents = {"analyze", "rewrite", "salary", "sourcing"}
     if jd_needed_intents.intersection(intent) and not jd_text:
         missing_parts.append("JD 文字（請將職缺描述貼在 Prompt 中）")
 

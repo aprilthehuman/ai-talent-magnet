@@ -18,7 +18,7 @@
 
 v1.7 新增欄位：
   - parsed_intent    : parse_input_node 抽取出的使用者意圖清單
-                       合法值：["rewrite", "salary", "sourcing", "hr_qa"] 的子集
+                       合法值：["analyze", "rewrite", "salary", "sourcing", "hr_qa"] 的子集
                        branch_node 讀取此欄位取代原本的關鍵字硬比對
   - clarification_needed : clarify_node 判斷資訊缺失時寫入的提問文字
                            非空時 workflow 會在回傳給前端前中止執行
@@ -59,7 +59,7 @@ class AgentState(TypedDict):
     copilot_result: NotRequired[CopilotResponse]          # 模組 F
 
     # 控制欄位
-    parsed_intent: NotRequired[list[str]]           # parse_input_node 寫入：rewrite / salary / sourcing / hr_qa 的子集
+    parsed_intent: NotRequired[list[str]]           # parse_input_node 寫入：analyze / rewrite / salary / sourcing / hr_qa 的子集
     clarification_needed: NotRequired[str | None]   # clarify_node 寫入：資訊不足時的補問文字
     branch_decision: NotRequired[str]               # salary / sourcing / both / none
 

@@ -53,7 +53,7 @@ class AgentResponse(BaseModel):
     )
     parsed_intent: list[str] = Field(
         default_factory=list,
-        description="parse_input_node 提取的意圖清單（rewrite / salary / sourcing / hr_qa）",
+        description="parse_input_node 提取的意圖清單（analyze / rewrite / salary / sourcing / hr_qa）",
     )
     branch_decision: str | None = Field(
         default=None,
