@@ -64,17 +64,19 @@ JD 輸入
 | 資料處理 | pandas | 官方資料 ETL + 員工 CSV 查詢 |
 | 部署 | Docker + Railway（Phase 4 規劃中）| 前後端同平台、支援 Volume、不休眠  |
 
-### 四層架構
+### 分層架構
 
 ```
-展示層        Streamlit（7 個模組操作頁 + 1 個 Agent 對話頁）
-               ↕ HTTP
-Orchestration  LangGraph Structured Workflow + Orchestration Tools
-層             （模組 G 使用；模組 A–F 的 Streamlit 頁面繼續走 HTTP）
-               ↕ 直接呼叫 Service 函數
-服務層         FastAPI（7 個 API endpoints）+ ChromaDB（RAG）
-               ↕
-資料層         官方薪資 CSV × 3、員工模擬 CSV × 3、knowledge/ 文件 × 3
+展示層         Streamlit（首頁 + 6 個模組頁 + 1 個 AI 招募助手對話頁）
+                ↕ HTTP
+API 層          FastAPI（7 個 endpoints，Pydantic 入口驗證）
+                ├─ 模組 A–F：Router 直接呼叫 Service
+                └─ 模組 G：Router → Orchestration 層
+Orchestration  LangGraph Structured Workflow + tools.py 轉接層（僅模組 G）
+層              ↓ 呼叫 Service 函數
+服務層          各模組商業邏輯 + ChromaDB（RAG）
+                ↕
+資料層          官方薪資 CSV × 3、員工模擬 CSV × 3、knowledge/ 文件 × 3
 ```
 
 ---
@@ -82,8 +84,12 @@ Orchestration  LangGraph Structured Workflow + Orchestration Tools
 ## 專案結構
 
 ```
+requirements.txt                   # 套件清單（UTF-8，Windows 與 Linux 共用）
+.env.example                       # 環境變數範本（複製為 .env 後填入）
+README.md
+
 app/
-├── config.py                      # 全域設定（API 金鑰、ChromaDB 路徑、chunk 參數）
+├── config.py                      # 全域設定（資料路徑、ChromaDB、chunk 參數、LangSmith 設定）
 ├── main.py                        # FastAPI 主程式，掛載所有 router
 ├── core/
 │   ├── keyword_dicts.py           # 職稱同義詞字典、負面詞彙、模糊用語、缺失項目檢查
@@ -130,7 +136,7 @@ app/
 │   └── employees/                 # 模組 F 員工模擬資料
 │       ├── employees.csv          # 20 筆員工基本資料
 │       ├── leave_records.csv      # 84 筆請假紀錄
-│       └── salary_records.csv     # 160 筆薪資紀錄
+│       └── salary_records.csv     # 160 筆薪資紀錄（目前未被工具使用，預留）
 └── vector_store/                  # ChromaDB 持久化儲存（模組 F）
 
 frontend/                          # Streamlit 前端
@@ -191,7 +197,8 @@ data_raw/                          # 原始政府統計 Excel（不進版控）
 - **底分 60**：代表一份基本可用的 JD
 - **AI 語氣分（0–40）**：LLM 從候選人角度評估整體語氣；程式會把回傳值限制在 0–40
 - **規則扣分（不設上限）**：
-  - 負面詞每個 −5、模糊用語每個 −3（較長詞命中時，不重複計入其包含的短詞，例如「抗壓性高」不會再加扣「抗壓」）
+  - 負面詞每個 −5（較長詞命中時，不重複計入其包含的短詞，例如「抗壓性高」不會再加扣「抗壓」）
+  - 模糊用語每個 −3
   - 四項缺失資訊：薪資 −10、工作內容 −10、成長機會 −8、團隊文化 −5
   - 薪資先比對關鍵字（薪資、月薪、年薪、待遇），再以正規表示式辨識「數字 + K」（如 `58K–72K`）
 - 等級：優良 80–100 ｜ 普通 60–79 ｜ 偏低 40–59 ｜ 危險 0–39
@@ -259,6 +266,17 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 1. **Python 規則層：** `extract_jd_salary()` 用正規表示式從 JD 解析已揭露薪資
 2. **Python 查詢層：** `build_salary_context()` 從三份官方資料撈出參考數字
 3. **LLM 推估層：** 職稱/產業語意映射 + 推估 P25/中位數/P75 + 競爭力等級
+
+**競爭力判斷規則（v1.7）**
+
+HR 有提供薪資時，LLM 必須先推估 P25 / 中位數 / P75，再依 offered 薪資落在哪個區間決定等級，不得以產業、外商等主觀因素覆蓋數字判斷；`competitiveness_reason` 需寫明比較依據。
+
+| offered 薪資位置 | 可給的等級 |
+|------|------|
+| ≥ P75 | 高度競爭 / 具競爭力 |
+| 中位數 ～ P75 | 具競爭力 / 普通 |
+| P25 ～ 中位數 | 普通 / 偏低 |
+| < P25 | 明顯偏低 |
 
 **輸出欄位**
 
@@ -335,6 +353,8 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 
 此路由完全由 regex + 關鍵字集合比對完成，不消耗 API 費用，行為確定。
 
+> 註：上述規則分派用於 ❻ HR 知識助手頁面（`copilot_service.py` 的 `dispatch_query()`）。模組 G 的純 HR 問答路徑目前改由 LLM tool calling 選擇工具，兩者共用同一組三個工具；後續規劃統一改用 `dispatch_query()`。
+
 **三個工具**
 
 | Tool | 功能 | 底層實作 |
@@ -360,7 +380,7 @@ ETL 腳本：`scripts/prepare_data.py` → 輸出 `app/data/` 底下三份標準
 |------|------|
 | `employees.csv` | 20 位員工（employee_id、姓名、部門、職稱、到職日、在職狀態、月薪、性別、email）|
 | `leave_records.csv` | 84 筆請假紀錄（特休、事假、病假、生理假、婚假、喪假、陪產假、育嬰假、補休、公假；含 approved / pending / rejected 狀態）|
-| `salary_records.csv` | 160 筆薪資紀錄（2026 年 1–8 月，底薪、獎金、加班費、扣款、實發薪資；底薪與 employees.csv 月薪一致）|
+| `salary_records.csv` | 160 筆薪資紀錄（2026 年 1–8 月，底薪、獎金、加班費、扣款、實發薪資；底薪與 employees.csv 月薪一致）；目前未被工具使用，預留給薪資歷史查詢 |
 
 **API**
 
@@ -387,6 +407,8 @@ LangGraph Structured Workflow，讓 HR 用一句自然語言觸發完整 JD 優�
 | Company Profile | 前端手動填寫（必填）| `parse_input_node` 從自然語言自動提取（選填）|
 | 補問機制 | 無（直接執行，可能低品質）| `clarify_node` 在必要資訊不足時主動補問 |
 | AgentState 新增 | — | `parsed_intent: list[str]`、`clarification_needed: str \| None` |
+
+`parsed_intent` 合法值：`analyze`（分析 JD / Persona）、`rewrite`、`salary`、`sourcing`、`hr_qa`。branch_node 只讀取其中的 `salary` 與 `sourcing` 決定分支。
 
 **Workflow 執行流程（v1.7）**
 
@@ -455,7 +477,7 @@ class AgentState(TypedDict):
     copilot_result: NotRequired[CopilotResponse]          # 模組 F
 
     # 控制欄位
-    parsed_intent: NotRequired[list[str]]           # parse_input_node 寫入：rewrite / salary / sourcing / hr_qa 的子集
+    parsed_intent: NotRequired[list[str]]           # parse_input_node 寫入：analyze / rewrite / salary / sourcing / hr_qa 的子集
     clarification_needed: NotRequired[str | None]   # clarify_node 寫入：資訊不足時的補問文字
     branch_decision: NotRequired[str]               # salary / sourcing / both / none
 
@@ -482,7 +504,9 @@ class AgentState(TypedDict):
 | `copilot_node` | 模組 F | 無 jd_text（純諮詢路徑）|
 | `synthesize_node` | — | 所有分支的終點 |
 
-**評估系統（8 個 Eval Cases，8/8 PASS）**
+**評估系統（8 個 Eval Cases）**
+
+修正後連續執行皆 8/8 通過。斷言設計原則：流程正確性由結構化欄位（`steps_taken`、`branch_decision`、`parsed_intent`）嚴格檢查；報告文字只做寬鬆的關鍵字檢查，避免因 LLM 措辭不同而誤判。eval 失敗時會一併輸出 `error_messages`，方便追蹤模組錯誤。
 
 | Case | 說明 | 預期路由 |
 |------|------|----------|
@@ -567,9 +591,15 @@ streamlit run "frontend/🏠_首頁.py"
 
 ### 環境變數
 
+複製 `.env.example` 為 `.env` 後填入：
+
 ```bash
 OPENAI_API_KEY=sk-...
-LANGSMITH_API_KEY=...   # 選填，用於 LangSmith 追蹤
+
+# 選填：啟用 LangSmith 追蹤（模組 G）
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=...
+LANGCHAIN_PROJECT=ai-talent-magnet
 ```
 
 ---
@@ -591,13 +621,13 @@ LANGSMITH_API_KEY=...   # 選填，用於 LangSmith 追蹤
 放棄手動整理 50–100 筆 mock 對照資料，改採政府公開統計資料（勞動部 + 主計總處）做一次性 ETL。職稱/產業自由文字與官方分類之間的落差，交由 LLM 語意映射，而非在 Python 層寫死規則。
 
 **2. Structured Workflow 取代 ReAct Agent（模組 G）**
-JD 優化流程步驟固定，Structured Workflow 比 ReAct 更可預測、可測試，且避免不必要的 LLM 路由成本。eval 8/8 穩定通過。
+JD 優化流程步驟固定，Structured Workflow 比 ReAct 更可預測、可測試，且避免不必要的 LLM 路由成本。8 個 eval 案例涵蓋所有路由路徑，修正後連續執行皆 8/8 通過。
 
 **3. LLM 路由取代關鍵字比對（模組 G v1.7）**
 `parse_input_node` 必然執行一次 LLM 呼叫提取結構化欄位，同一次呼叫同時輸出 `parsed_intent`，邊際成本為零，且能理解「確認待遇有沒有競爭力」等不含精確關鍵字的表達。
 
 **4. Rule-based dispatch（模組 F）**
-HR 知識助手的意圖判斷採 regex + 關鍵字比對，不呼叫 LLM。行為確定、零 API 費用；未來升級為 LangGraph Agent 時，Router 介面不需更動。
+HR 知識助手頁面的意圖判斷採 regex + 關鍵字比對，不呼叫 LLM。行為確定、零 API 費用；分派邏輯封裝在 Service 層的 `dispatch_query()`，Router 只負責轉交，未來替換分派方式時 Router 介面不需更動。
 
 **5. 確定性計算設計（模組 F）**
 特休天數等數值計算由 Python 函數完成（年資查表 → 已請加總 → 剩餘計算），LLM 只負責組合自然語言回答，確保數字 100% 正確。
