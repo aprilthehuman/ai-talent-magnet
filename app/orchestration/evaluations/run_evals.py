@@ -14,11 +14,8 @@ v1.7 新增斷言類型：
   - extracted_field : parse_input_node 提取的欄位（含 company_name_in_report、salary_extracted）
   - branch_decision : branch_node 的路由決策
 
-v1.7 移除：
-  - should_raise    : model_validator 已移除 company_profile 必填驗證（C6 重新設計）
 """
 
-from pydantic import ValidationError
 
 from app.models.agent_schemas import AgentRequest, AgentResponse
 from app.orchestration.agent_service import run_agent
@@ -33,14 +30,6 @@ def run_single_case(case: dict) -> dict:
     """
     expected = case["expected"]
 
-    # ── 已廢棄：should_raise（v1.7 model_validator 已移除）──────────────
-    # 保留向下相容性，若舊 case 有此欄位仍可執行，但 v1.7 eval_cases 不再使用
-    if "should_raise" in expected:
-        try:
-            AgentRequest(**case["input"])
-            return {"passed": False, "reason": "預期拋出例外，但沒有發生（注意：v1.7 已移除 model_validator，此 case 應更新）"}
-        except (ValueError, ValidationError):
-            return {"passed": True, "reason": ""}
 
     # ── 建立 Request 並執行 Agent ────────────────────────────────────────
     try:
@@ -60,8 +49,8 @@ def run_single_case(case: dict) -> dict:
                     f"  response.clarification_needed = {getattr(response, 'clarification_needed', 'N/A')}"
                 ),
             }
-        # 補問情境：report_contains 改為驗證補問訊息（clarification_message 或 final_report）
-        clarification_msg = getattr(response, "clarification_message", "") or response.final_report
+        # 補問訊息會被包裝成 final_report 回傳
+        clarification_msg = response.final_report
         for keyword in expected.get("report_contains", []):
             if keyword not in clarification_msg:
                 return {
@@ -116,7 +105,8 @@ def run_single_case(case: dict) -> dict:
                 "reason": (
                     f"steps_taken 不符\n"
                     f"  預期：{expected_steps}\n"
-                    f"  實際：{actual_steps}"
+                    f"  實際：{actual_steps}\n"
+                    f"  error_messages：{response.error_messages}"   # 新增：顯示模組失敗原因
                 ),
             }
 
