@@ -51,7 +51,7 @@ st.info(
 **另外要避開這些用語：**
 
 - 負面詞（每個 −5）：抗壓、加班、責任制、獨當一面、配合度高…
-- 模糊用語（每個 −3）：其他相關業務、視情況調整、協助主管…
+- 模糊用語（每個 −3）：其他相關業務、視情況調整、主管交辦事項…
 
 最後還有 AI 依整體語氣給 0–40 分的印象分。
 """
@@ -287,7 +287,7 @@ if st.session_state["module_a_result"]:
  
     # 缺失項目
     # missing_elements 是 list[MissingElement]，每個元素包含 label 和 penalty
-    # 顯示缺失項目名稱和對應的扣分，讓 HR 知道哪個問題最嚴重
+    # 這裡只列出項目名稱；各項扣幾分已顯示在上方「分數是怎麼算出來的」表格
     st.markdown("### 📌 缺失的重要資訊")
     if missing_list:
         for item in missing_list:
