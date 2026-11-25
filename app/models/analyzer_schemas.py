@@ -115,5 +115,5 @@ class AnalyzeJDResponse(BaseModel):
     )
     improvement_suggestions: list[str] = Field(
         ...,
-        description="三條改善建議，格式為【問題】→【原因】→【建議】，每條 40-60 字"
+        description="三條改善建議，格式為【問題】→【原因】→【建議】，每條約 110 字"
     )
