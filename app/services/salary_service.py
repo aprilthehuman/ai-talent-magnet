@@ -103,6 +103,47 @@ def extract_jd_salary(jd_text: str) -> str | None:
 
 # ── 3. 查詢層：從 CSV 撈出參考數字 ──────────────────────
 
+# 三個「大類」產業：不是具體產業，只在無法判斷具體產業時當備案
+_BROAD_INDUSTRIES = ["工業", "服務業", "全體"]
+
+
+def _build_industry_table(
+    df: pd.DataFrame,
+    value_col: str,
+    key_col: str,
+    keys: list[str],
+) -> list[str]:
+    """
+    把「產業 × 某個欄位」整理成一行一個產業的文字表，放進 prompt 給 LLM 挑選。
+
+    參數：
+        df       : df_education 或 df_company_size
+        value_col: 數值欄位名稱（median_annual_wan）
+        key_col  : 篩選欄位（education 或 company_size）
+        keys     : 要顯示的欄位值。學歷/規模已由 Python 決定，通常只有一個；
+                   公司規模未提供時會是三個
+    """
+    # 只留下要顯示的欄位值，再轉成「產業 × 欄位值」的寬表
+    pivot = (
+        df[df[key_col].isin(keys)]
+        .pivot(index="industry", columns=key_col, values=value_col)
+    )
+
+    def format_row(industry: str) -> str:
+        # 同一個產業，把每個欄位值的數字接成一段，例：startup 69.8 / SME 83.4
+        parts = [f"{k} {pivot.loc[industry, k]:.1f}" for k in keys if k in pivot.columns]
+        return f"  - {industry}：" + " / ".join(parts) + " 萬元"
+
+    # 具體產業在前，大類備案在後；大類不在 CSV 裡的話就自動略過
+    specific = [i for i in pivot.index if i not in _BROAD_INDUSTRIES]
+    broad = [i for i in _BROAD_INDUSTRIES if i in pivot.index]
+
+    rows = [format_row(i) for i in specific]
+    rows.append("  （以下為大類，僅在無法判斷具體產業時使用）")
+    rows += [format_row(i) for i in broad]
+    return rows
+
+
 def build_salary_context(
     job_title: str,
     industry: str | None,
@@ -111,13 +152,21 @@ def build_salary_context(
     seniority_level: str | None,
 ) -> str:
     """
-    從三份 CSV 查詢對應的薪資參考數字，組成給 LLM 的背景資料字串。
+    從三份 CSV 組成給 LLM 的背景資料字串。
 
-    查詢邏輯：
-      - 勞動部職類別：列出所有職類名稱供 LLM 參考，由 LLM 自行映射最接近的職類
-      - 主計總處學歷別：若有 industry + education_level，查對應中位數；否則用全體
-      - 主計總處規模別：若有 industry + company_type，查對應中位數；否則用全體
+    1. Python 把所有產業都列出來，具體產業在前，「工業／服務業／全體」三個大類在後，並標註「僅在無法判斷具體產業時使用」。
+    2. LLM 自己挑最接近的產業；挑不到才用大類。
+    3. 只有 HR 沒填產業時，才直接指定用「全體」。
+    4. 分工：Python 決定看哪一「欄」（學歷、規模是固定對照），LLM 決定看哪一「列」（產業需要語意判斷）。
     """
+    # 產業的挑選指示：有填產業就請 LLM 找最接近的；沒填就直接用「全體」
+    if industry:
+        industry_instruction = (
+            f"請從以下產業中找出與「{industry}」最接近的項目；無法判斷時，才使用大類："
+        )
+    else:
+        industry_instruction = "產業未提供，請使用大類「全體」的數字："
+
     lines = []
 
     # ── 勞動部：列出所有職類供 LLM 映射 ──────────────────
@@ -128,9 +177,7 @@ def build_salary_context(
         annual = f"{row['annual_salary_wan']:.1f}" if pd.notna(row["annual_salary_wan"]) else "無資料"
         lines.append(f"  - {row['occupation_name']}（{row['occupation_code']}）：月薪 {monthly} 元 / 年薪 {annual} 萬元")
 
-    # ── 主計總處學歷別：查詢對應產業 × 學歷 ──────────────
-    lines.append("\n【主計總處學歷別薪資｜113年｜中位數｜工業及服務業整體】")
-
+    # ── 主計總處學歷別：產業 × 學歷（學歷由 Python 決定）────
     edu_mapping = {
         "大學": "專科及大學",
         "碩士": "研究所",
@@ -139,51 +186,18 @@ def build_salary_context(
     }
     edu_key = edu_mapping.get(education_level, "不限") if education_level else "不限"
 
-    edu_industry = industry if industry else "全體"
-    edu_row = df_education[
-        (df_education["industry"] == edu_industry) &
-        (df_education["education"] == edu_key)
-    ]
-    if edu_row.empty and edu_industry != "全體":
-        edu_industry = "全體"
-        edu_row = df_education[
-            (df_education["industry"] == "全體") &
-            (df_education["education"] == edu_key)
-        ]
-        lines.append(f"（產業「{industry}」無法直接對應，改用全體數據）")
+    lines.append(f"\n【主計總處學歷別薪資｜113年｜中位數｜學歷：{edu_key}】")
+    lines.append(industry_instruction)
+    lines += _build_industry_table(df_education, "median_annual_wan", "education", [edu_key])
 
-    if not edu_row.empty:
-        val = edu_row.iloc[0]["median_annual_wan"]
-        lines.append(f"  學歷（{edu_key}）× 產業（{edu_industry}）年薪中位數：{val:.1f} 萬元")
-    else:
-        lines.append("  學歷別薪資：無對應資料")
+    # ── 主計總處規模別：產業 × 規模（規模由 Python 決定）────
+    # 公司規模未提供時，三種規模都列出，讓 LLM 自行參考
+    size_keys = [company_type] if company_type else ["startup", "SME", "enterprise"]
+    size_label = company_type if company_type else "未提供，列出全部規模"
 
-    # ── 主計總處規模別：查詢對應產業 × 公司規模 ──────────
-    lines.append("\n【主計總處規模別薪資｜113年｜中位數｜工業及服務業整體】")
-
-    size_industry = industry if industry else "全體"
-    size_key = company_type if company_type else None
-
-    if size_key:
-        size_row = df_company_size[
-            (df_company_size["industry"] == size_industry) &
-            (df_company_size["company_size"] == size_key)
-        ]
-        if size_row.empty and size_industry != "全體":
-            size_industry = "全體"
-            size_row = df_company_size[
-                (df_company_size["industry"] == "全體") &
-                (df_company_size["company_size"] == size_key)
-            ]
-            lines.append(f"（產業「{industry}」無法直接對應，改用全體數據）")
-
-        if not size_row.empty:
-            val = size_row.iloc[0]["median_annual_wan"]
-            lines.append(f"  規模（{size_key}）× 產業（{size_industry}）年薪中位數：{val:.1f} 萬元")
-        else:
-            lines.append("  規模別薪資：無對應資料")
-    else:
-        lines.append("  公司規模未提供，略過規模別參考")
+    lines.append(f"\n【主計總處規模別薪資｜113年｜中位數｜規模：{size_label}】")
+    lines.append(industry_instruction.rstrip("：") + "（規模別需與學歷別選同一個產業）：")
+    lines += _build_industry_table(df_company_size, "median_annual_wan", "company_size", size_keys)
 
     # ── 年資層級補充說明 ──────────────────────────────────
     if seniority_level:
@@ -288,7 +302,8 @@ competitiveness_reason 中說明「薪資未揭露」對候選人吸引力的影
 【注意事項】
 - 兩個資料來源統計方式不同：勞動部為平均數，主計總處為中位數，請在推估時留意
 - 若職稱無法精確對應官方職類，請說明映射邏輯並調低 confidence_level
-- 若產業無法對應主計總處分類，請使用「全體」數據並說明
+- 請在 data_sources 中寫明你選了哪個主計總處產業，以及原因
+- 若無法判斷具體產業，才使用大類（工業／服務業／全體），並說明原因及調低 confidence_level
 - disclaimer 必須標註正確資料年份：勞動部職類別薪資調查為 114 年、主計總處薪資統計為 113 年
 
 請用以下 JSON 格式回答，不要加任何其他文字或 markdown 標記：
@@ -299,8 +314,8 @@ competitiveness_reason 中說明「薪資未揭露」對候選人吸引力的影
   "competitiveness_level": "高度競爭" 或 "具競爭力" 或 "普通" 或 "偏低" 或 "明顯偏低",
   "competitiveness_reason": "60-100 字的判斷理由，需明確引用 offered 薪資與 P25/median/P75 的比較結果",
   "salary_suggestion": "60-100 字的具體薪資建議",
-  "data_sources": "本次推估實際引用的資料來源說明",
-  "confidence_level": "high" 或 "medium" 或 "low",
+  "data_sources": "必須寫明三件事：(1)選用的勞動部職類名稱 (2)選用的主計總處正式產業名稱（照上方清單的名稱，不可寫使用者原本填的說法）及選它的原因 (3)資料年份",
+  "confidence_level": "high（職稱與產業都能精確對應）或 medium（產業或職稱需語意推論，例如 SaaS 對應到出版影音及資通訊業）或 low（只能使用大類備案）",
   "confidence_reason": "40-60 字的可信度說明",
   "disclaimer": "資料限制與使用提醒（需包含：資料年份、統計方式差異、建議搭配即時平台驗證）"
 }}

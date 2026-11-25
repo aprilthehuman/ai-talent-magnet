@@ -9,11 +9,11 @@
   2. LLM 層：
      - 將 job_title 映射至勞動部職類別，取得職類薪資基準（平均數）
      - 將 industry 映射至主計總處產業分類，取得學歷與規模修正參考（中位數）
-     - 綜合推估市場薪資區間（P25 / P75）
+     - 綜合推估市場薪資區間（P25 / P50 / P75）
      - 對比 JD 薪資（若有）與市場區間，輸出競爭力判斷與建議
 
 輸出欄位：
-  - market_salary_range  : 市場薪資區間（P25 / P75，月薪元）
+  - market_salary_range  : 市場薪資區間（P25 / P50 / P75，月薪元）
   - competitiveness_level: 競爭力等級（五級）
   - competitiveness_reason: 判斷理由
   - salary_suggestion    : 具體薪資建議
@@ -96,8 +96,9 @@ class SalaryCheckRequest(BaseModel):
 class MarketSalaryRange(BaseModel):
     """
     LLM 推估的市場薪資區間。
-    P25 / P75 為統計常用的四分位數表示法：
+    P25 / P50 / P75 為統計常用的四分位數表示法：
       - P25（第一四分位數）：市場上 25% 的人薪資低於此值，代表偏低的基準
+      - P50（中位數）：市場上一半的人薪資低於此值，代表市場中間水準
       - P75（第三四分位數）：市場上 75% 的人薪資低於此值，代表較高的基準
     區間愈寬代表該職類薪資分佈愈分散。
     """
@@ -105,13 +106,13 @@ class MarketSalaryRange(BaseModel):
         ...,
         description="市場薪資第一四分位數（月薪，單位：元），低於此值代表薪資偏低"
     )
-    p75_monthly: int = Field(
-        ...,
-        description="市場薪資第三四分位數（月薪，單位：元），高於此值代表薪資具競爭力"
-    )
     median_monthly: int = Field(
         ...,
         description="市場薪資中位數估計（月薪，單位：元）"
+    )
+    p75_monthly: int = Field(
+        ...,
+        description="市場薪資第三四分位數（月薪，單位：元），高於此值代表薪資具競爭力"
     )
 
 
