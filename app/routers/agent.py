@@ -26,13 +26,15 @@ def run_agent_endpoint(request: AgentRequest):
 
     - parse_input_node 提取結構化欄位與 parsed_intent
     - clarify_node 判斷資訊是否充足，不足時回傳補問訊息
-    - parsed_intent = hr_qa：執行 copilot → synthesize
-    - parsed_intent = rewrite/salary/sourcing：執行 analyze→rewrite→persona→branch→[salary/sourcing]→synthesize
+    - 無 jd_text：執行 copilot → synthesize
+    - 有 jd_text：執行 analyze→rewrite→persona→branch→[salary/sourcing]→synthesize
+      （branch 依 parsed_intent 是否含 salary／sourcing 決定）
     """
     try:
         return run_agent(request)
     except ValueError as e:
-        # AgentRequest 輸入驗證錯誤
+        # 防禦性處理：執行過程中的數值或格式錯誤
+        # （AgentRequest 的型別驗證由 FastAPI 在進入函式前自動處理，失敗時直接回 422）
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent 執行失敗：{e}")
