@@ -147,9 +147,12 @@ def rewrite_jd(request: RewriteJDRequest) -> RewriteJDResponse:
     profile_applied = {
         "company_name": profile.company_name,
         "culture_keywords": profile.culture_keywords,
+        "vision": profile.vision,                      # 補上：前端會顯示
+        "manager_style": profile.manager_style,        # 補上：前端會顯示
+        "tone_preference": profile.tone_preference,
         "must_include": profile.must_include,
         "must_avoid": profile.must_avoid,
-        "tone_preference": profile.tone_preference
+        "industry_context": profile.industry_context,  # 補上：前端會顯示
     }
 
     return RewriteJDResponse(
