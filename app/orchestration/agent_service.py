@@ -14,7 +14,7 @@ workflow 路徑（v1.7）：
     → parse_input_node（抽取結構化資料與意圖）
     → clarify_node（資訊缺失？）
         ↓ 有缺失                ↓ 資訊完整
-      END（回傳提問）       route_after_jd_check
+      END（回傳提問）       route_after_clarify
                                ↓ 有 JD            ↓ 無 JD
                            analyze_node         copilot_node
                            rewrite_node              ↓
@@ -66,8 +66,8 @@ def parse_input_node(state: AgentState) -> dict:
       - tone_preference ：語氣偏好
       - salary_min    ：薪資下限（數字，月薪 NT$）
       - salary_max    ：薪資上限（數字，月薪 NT$）
-      - company_type  ：公司類型（新創 / 中小企業 / 大型企業 / 外商）
-      - seniority_level ：職級（Junior / Mid / Senior / Lead / Manager）
+      - company_type  ：公司類型（startup / SME / enterprise，對應模組 C 規模別欄位；外商或無法判斷填 null）
+      - seniority_level ：職級（junior / mid / senior，全小寫，對應模組 C 年資提示）
       - intent        ：必填，根據使用者想做什麼決定（可多選）：
                         "analyze"  → 使用者想分析 JD 吸引力或產生候選人 Persona
                         "rewrite"  → 使用者想改寫 JD
@@ -114,8 +114,8 @@ def parse_input_node(state: AgentState) -> dict:
   "tone_preference": "語氣偏好或null",
   "salary_min": 數字或null,
   "salary_max": 數字或null,
-  "company_type": "新創/中小企業/大型企業/外商 或null",
-  "seniority_level": "Junior/Mid/Senior/Lead/Manager 或null",
+  "company_type": "startup（新創）/ SME（中小企業）/ enterprise（大型企業）擇一，無法判斷或外商時填 null",
+  "seniority_level": "junior / mid / senior 擇一（全小寫），無法判斷時填 null",
   "intent": ["analyze", "rewrite", "salary", "sourcing", "hr_qa 的子集"]
 }}
 """
