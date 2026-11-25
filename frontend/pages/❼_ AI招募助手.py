@@ -82,8 +82,8 @@ with st.expander("💡 這個助手能做什麼？怎麼寫 Prompt？", expanded
 - 公司名稱、願景、文化關鍵字
 - 產業背景、管理風格、語氣偏好
 - 薪資預算範圍（例：月薪 6-8 萬）
-- 公司類型（新創 / 外商 / 大型企業）
-- 職級（Junior / Senior / Manager）
+- 公司類型（新創 / 中小企業 / 大型企業）
+- 職級（Junior / Mid / Senior）
 
 **範例 Prompt：**
 ```
