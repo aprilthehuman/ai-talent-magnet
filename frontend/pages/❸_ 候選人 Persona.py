@@ -127,8 +127,9 @@ if st.session_state.get("module_d_result"):
         with col2:
             st.markdown("**從 Module B 帶入**")
             profile = st.session_state.get("company_profile") or {}
-            st.markdown(f"- 公司名稱：{profile.get('company_name', '（未填）')}")
-            st.markdown(f"- 公司願景：{profile.get('vision', '（未填）')}")
+            # 用 or 取代 get 的預設值：key 存在但值是 None 時也能顯示「（未填）」
+            st.markdown(f"- 公司名稱：{profile.get('company_name') or '（未填）'}")
+            st.markdown(f"- 公司願景：{profile.get('vision') or '（未填）'}")
             st.markdown(f"- 企業文化：{', '.join(profile.get('culture_keywords', []))}")
             st.markdown(f"- 主管風格：{profile.get('manager_style') or '（未填）'}")
             st.markdown(f"- 語氣偏好：{profile.get('tone_preference') or '（未填）'}")
