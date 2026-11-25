@@ -47,7 +47,10 @@ def generate_persona(request: GeneratePersonaRequest) -> GeneratePersonaResponse
         edu_str = "學歷參考條件：不限"
 
     # 組裝模組 B 的 Company Profile
-    culture_str = "、".join(profile.culture_keywords)
+    # v1.7：選填欄位加 fallback，與 rewriter_service 一致，避免 prompt 出現 "None"
+    company_name_str = profile.company_name or "（未提供）"
+    culture_str = "、".join(profile.culture_keywords) if profile.culture_keywords else "（未提供）"
+    vision_str = profile.vision or "（未提供）"
     must_include_str = "、".join(profile.must_include) if profile.must_include else "（無）"
     must_avoid_str = "、".join(profile.must_avoid) if profile.must_avoid else "（無）"
     target_str = f"\n想吸引的候選人特質：{request.target_candidate_focus}" if request.target_candidate_focus else ""
@@ -62,9 +65,9 @@ def generate_persona(request: GeneratePersonaRequest) -> GeneratePersonaResponse
     {edu_str}（作為參考，非硬性要求，反映在 likely_background 的描述中即可）
 
     【公司背景】
-    公司名稱：{profile.company_name}
+    公司名稱：{company_name_str}
     企業文化關鍵字：{culture_str}
-    公司願景：{profile.vision}
+    公司願景：{vision_str}
     主管風格：{profile.manager_style or "（未提供）"}
     語氣偏好：{profile.tone_preference or "（未提供）"}
     必須帶到的訊息：{must_include_str}
