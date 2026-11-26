@@ -492,21 +492,22 @@ class AgentState(TypedDict):
 
 | 節點 | 對應模組 | 觸發條件 |
 |------|----------|----------|
-| `parse_input_node` | — | 每次執行必執行（v1.7 新增）|
-| `clarify_node` | — | parse_input 完成後（v1.7 新增）|
-| `end_with_clarify_node` | — | 資訊缺失時，包裝提問為 final_report 後結束 |
-| `analyze_node` | 模組 A | 有 jd_text 時必執行 |
+| `parse_input_node` | — | 每次必執行（v1.7 新增）|
+| `clarify_node` | — | parse_input 完成後必執行（v1.7 新增）|
+| `end_with_clarify_node` | — | 需要補問時，將補問文字放進 final_report 後結束（v1.7 新增） |
+| `analyze_node` | 模組 A | 資訊充足且有 jd_text |
 | `rewrite_node` | 模組 B | analyze 完成後必執行 |
-| `persona_node` | 模組 D | rewrite 完成後必執行 |
-| `branch_node` | — | 讀取 `parsed_intent` 決定路由 |
-| `salary_node` | 模組 C | branch_decision 含 "salary" |
-| `sourcing_node` | 模組 E | branch_decision 含 "sourcing" |
-| `copilot_node` | 模組 F | 無 jd_text（純諮詢路徑）|
-| `synthesize_node` | — | 所有分支的終點 |
+| `persona_node` | 模組 D | rewrite 完成後執行；rewrite 失敗時跳過（safe_persona_node）|
+| `branch_node` | — | 讀取 parsed_intent 決定 branch_decision |
+| `salary_node` | 模組 C | branch_decision 為 salary 或 both |
+| `sourcing_node` | 模組 E | branch_decision 為 sourcing 或 both（both 時接在 salary 之後）|
+| `copilot_node` | 模組 F | 資訊充足且無 jd_text（純諮詢路徑）|
+| `synthesize_node` | — | 所有執行路徑的終點（補問路徑除外）|
 
 **評估系統（8 個 Eval Cases）**
 
-修正後連續執行皆 8/8 通過。斷言設計原則：流程正確性由結構化欄位（`steps_taken`、`branch_decision`、`parsed_intent`）嚴格檢查；報告文字只做寬鬆的關鍵字檢查，避免因 LLM 措辭不同而誤判。eval 失敗時會一併輸出 `error_messages`，方便追蹤模組錯誤。
+新增 analyze 意圖並調整 C4、C5、C7 的斷言後，連續執行 3 次結果為 7/8、8/8、8/8；唯一一次失敗是 OpenAI API 暫時性錯誤，單獨重跑 15 次皆無法重現。
+斷言設計原則：流程正確性由結構化欄位（`steps_taken`、`branch_decision`、`parsed_intent`）嚴格檢查；報告文字只做寬鬆的關鍵字檢查，避免因 LLM 措辭不同而誤判。eval 失敗時會一併輸出 `error_messages`，方便追蹤模組錯誤。
 
 | Case | 說明 | 預期路由 |
 |------|------|----------|
@@ -516,7 +517,7 @@ class AgentState(TypedDict):
 | C4 | 有 JD，Sourcing 需求 | branch=sourcing |
 | C5 | 有 JD，薪資 + Sourcing 雙需求 | branch=both |
 | C6 | 意圖不明確（「幫我」）| `clarification_needed` 不為 None |
-| C7 | parse_input_node 欄位提取驗證 | 正確提取 company_profile 與 salary 欄位 |
+| C7 | parse_input_node 欄位提取驗證 | 報告中出現公司名稱與薪資數字；只驗證欄位提取，不驗證 steps_taken |
 | C8 | parsed_intent 語意路由（不含「薪資」字串）| branch=salary |
 
 執行評估：
@@ -621,7 +622,7 @@ LANGCHAIN_PROJECT=ai-talent-magnet
 放棄手動整理 50–100 筆 mock 對照資料，改採政府公開統計資料（勞動部 + 主計總處）做一次性 ETL。職稱/產業自由文字與官方分類之間的落差，交由 LLM 語意映射，而非在 Python 層寫死規則。
 
 **2. Structured Workflow 取代 ReAct Agent（模組 G）**
-JD 優化流程步驟固定，Structured Workflow 比 ReAct 更可預測、可測試，且避免不必要的 LLM 路由成本。8 個 eval 案例涵蓋所有路由路徑，修正後連續執行皆 8/8 通過。
+JD 優化流程步驟固定，Structured Workflow 比 ReAct 更可預測、可測試，且避免不必要的 LLM 路由成本。8 個 eval 案例涵蓋所有路由路徑，修正後連續執行 3 次為 7/8、8/8、8/8，唯一失敗為 API 暫時性錯誤。
 
 **3. LLM 路由取代關鍵字比對（模組 G v1.7）**
 `parse_input_node` 必然執行一次 LLM 呼叫提取結構化欄位，同一次呼叫同時輸出 `parsed_intent`，邊際成本為零，且能理解「確認待遇有沒有競爭力」等不含精確關鍵字的表達。
